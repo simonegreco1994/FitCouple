@@ -884,12 +884,15 @@ async function renderHistoryTab(){
           </div>`).join("");
         h+=`<div class="card" style="margin-bottom:12px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-            <div>
+            <div style="flex:1">
               <div class="card-title">${esc(s.workoutName)}</div>
               <div class="card-sub">${dateStr} · ${timeStr}</div>
             </div>
-            <div style="background:var(--sub);border-radius:8px;padding:4px 10px;text-align:center;flex-shrink:0">
-              <div style="color:var(--accent);font-size:13px;font-weight:700">⏱ ${durStr}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              <div style="background:var(--sub);border-radius:8px;padding:4px 10px;text-align:center">
+                <div style="color:var(--accent);font-size:13px;font-weight:700">⏱ ${durStr}</div>
+              </div>
+              <button class="btn-icon danger" onclick="deleteSession('${s.id}')">🗑️</button>
             </div>
           </div>
           <div style="border-top:1px solid var(--border);padding-top:8px">
