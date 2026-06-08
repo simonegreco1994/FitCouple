@@ -184,10 +184,12 @@ input:focus{border-color:var(--accent)}
     <div id="tab-workouts" class="scroll-area" style="display:none"></div>
     <div id="tab-nutrition" class="scroll-area" style="display:none"></div>
     <div id="tab-goals"     class="scroll-area" style="display:none"></div>
+    <div id="tab-history"   class="scroll-area" style="display:none"></div>
     <nav class="bottom-nav">
       <button class="nav-btn" id="nav-workouts" onclick="showTab('workouts')"><span>🏋️</span><span>Schede</span></button>
       <button class="nav-btn" id="nav-nutrition" onclick="showTab('nutrition')"><span>🥗</span><span>Diario</span></button>
       <button class="nav-btn" id="nav-goals"     onclick="showTab('goals')"><span>🎯</span><span>Obiettivi</span></button>
+      <button class="nav-btn" id="nav-history"   onclick="showTab('history')"><span>📋</span><span>Storico</span></button>
     </nav>
   </div>
 
@@ -203,7 +205,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
          signOut, onAuthStateChanged, sendPasswordResetEmail }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
-         collection, addDoc, query, where, onSnapshot }
+         collection, addDoc, getDocs, query, where, onSnapshot }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
@@ -342,13 +344,14 @@ window.logout=logout;
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 function showTab(tab){
-  ["workouts","nutrition","goals"].forEach(t=>{
+  ["workouts","nutrition","goals","history"].forEach(t=>{
     document.getElementById("tab-"+t).style.display=t===tab?"block":"none";
     document.getElementById("nav-"+t).classList.toggle("active",t===tab);
   });
   if(tab==="workouts")renderWorkoutsTab();
   else if(tab==="nutrition")renderNutritionTab();
   else if(tab==="goals")renderGoalsTab();
+  else if(tab==="history")renderHistoryTab();
 }
 window.showTab=showTab;
 
@@ -449,7 +452,7 @@ window.delWkt=delWkt;
 function startLive(id){
   const w=workouts.find(w=>w.id===id);
   if(!w||(w.exercises||[]).length===0){alert("Aggiungi almeno un esercizio!");return}
-  liveState={workout:JSON.parse(JSON.stringify(w)),exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false};
+  liveState={workout:JSON.parse(JSON.stringify(w)),exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now()};
   clearInterval(liveTimer);renderLive();showScreen("live");
 }
 window.startLive=startLive;
@@ -516,7 +519,7 @@ function completeSet(){
   const tot=Number(ex.sets), next=liveState.setIdx+1;
   if(next>=tot){
     const nex=liveState.exIdx+1;
-    if(nex>=w.exercises.length){liveState.done=true;renderLive();return}
+    if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();renderLive();return}
     liveState.exIdx=nex;liveState.setIdx=0;liveState.customRest=null;
   }else liveState.setIdx=next;
   const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
@@ -735,6 +738,77 @@ async function saveGoals(){
   renderGoalsTab();
 }
 window.saveGoals=saveGoals;
+
+// ─── WORKOUT HISTORY ──────────────────────────────────────────────────────────
+async function saveWorkoutSession(){
+  const w=liveState.workout;
+  const duration=liveState.startTime?Math.round((Date.now()-liveState.startTime)/1000):0;
+  const session={
+    uid:CU.uid,
+    workoutName:w.name,
+    date:new Date().toISOString(),
+    durationSecs:duration,
+    exercises:w.exercises.map(ex=>({
+      name:ex.name,
+      sets:ex.sets,
+      reps:ex.reps,
+      weight:ex.weight||""
+    }))
+  };
+  try{
+    await addDoc(collection(db,"sessions"),session);
+  }catch(e){console.error("Errore salvataggio sessione",e)}
+}
+
+async function renderHistoryTab(){
+  const el=document.getElementById("tab-history");
+  el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
+  try{
+    const q=query(collection(db,"sessions"),where("uid","==",CU.uid));
+    const snap=await getDocs(q);
+    let sessions=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // sort by date desc
+    sessions.sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+    let h=`<div class="section-header"><h2 class="section-title">Storico allenamenti</h2></div>`;
+    if(!sessions.length){
+      h+=`<p class="empty">Nessun allenamento completato ancora. Dai il massimo! 💪</p>`;
+    } else {
+      sessions.forEach(s=>{
+        const d=new Date(s.date);
+        const dateStr=d.toLocaleDateString("it-IT",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+        const timeStr=d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});
+        const mins=Math.floor((s.durationSecs||0)/60);
+        const secs=(s.durationSecs||0)%60;
+        const durStr=mins>0?`${mins}min ${secs}s`:`${secs}s`;
+        const exRows=(s.exercises||[]).map(ex=>`
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--sub)">
+            <span style="color:#ccc;font-size:13px">${esc(ex.name)}</span>
+            <span style="color:var(--muted);font-size:12px">${ex.sets}×${ex.reps}${ex.weight?" · "+ex.weight+"kg":""}</span>
+          </div>`).join("");
+        h+=`<div class="card" style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+            <div>
+              <div class="card-title">${esc(s.workoutName)}</div>
+              <div class="card-sub">${dateStr} · ${timeStr}</div>
+            </div>
+            <div style="background:var(--sub);border-radius:8px;padding:4px 10px;text-align:center;flex-shrink:0">
+              <div style="color:var(--accent);font-size:13px;font-weight:700">⏱ ${durStr}</div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:8px">
+            ${exRows}
+          </div>
+        </div>`;
+      });
+    }
+    el.innerHTML=h;
+  }catch(e){
+    el.innerHTML=`<p class="empty">Errore nel caricamento. Riprova.</p>`;
+    console.error(e);
+  }
+}
+window.renderHistoryTab=renderHistoryTab;
 </script>
 </body>
 </html>
