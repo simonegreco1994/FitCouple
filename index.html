@@ -624,8 +624,10 @@ window.endLive=endLive;
 
 // ─── NUTRITION ────────────────────────────────────────────────────────────────
 async function getDiary(date){
-  const snap=await getDoc(doc(db,"diary",CU.uid+"_"+date));
-  return snap.exists()?(snap.data().entries||[]):[];
+  try{
+    const snap=await getDoc(doc(db,"diary",CU.uid+"_"+date));
+    return snap.exists()?(snap.data().entries||[]):[];
+  }catch(e){ console.error("getDiary:",e); return []; }
 }
 async function saveDiary(date,entries){
   await setDoc(doc(db,"diary",CU.uid+"_"+date),{uid:CU.uid,date,entries});
@@ -635,7 +637,15 @@ async function saveDiary(date,entries){
 async function renderNutritionTab(){
   const el=document.getElementById("tab-nutrition");
   el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
-  const entries=await getDiary(nutritionDate);
+  let entries=[];
+  try{ entries=await getDiary(nutritionDate); }
+  catch(e){
+    console.error("Diary load error:",e);
+    el.innerHTML=`<div class="section-header"><h2 class="section-title">Diario alimentare</h2><button class="btn-add" onclick="openFoodAdd()">+ Aggiungi</button></div>
+    <div class="form-group"><input type="date" value="${nutritionDate}" onchange="nutritionDate=this.value;renderNutritionTab()"></div>
+    <p class="empty">Errore caricamento dati.<br>Prova ad aggiungere un alimento.</p>`;
+    return;
+  }
   const g=profile.goals||{kcal:2000,protein:150,carbs:200,fat:65};
   const tot=entries.reduce((a,e)=>({kcal:a.kcal+e.kcal,protein:a.protein+e.protein,carbs:a.carbs+e.carbs,fat:a.fat+e.fat}),{kcal:0,protein:0,carbs:0,fat:0});
   const kpct=Math.min((tot.kcal/g.kcal)*100,100);
