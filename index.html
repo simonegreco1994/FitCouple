@@ -455,7 +455,7 @@ window.delWkt=delWkt;
 function startLive(id){
   const w=workouts.find(w=>w.id===id);
   if(!w||(w.exercises||[]).length===0){alert("Aggiungi almeno un esercizio!");return}
-  liveState={workout:JSON.parse(JSON.stringify(w)),exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now()};
+  liveState={workout:JSON.parse(JSON.stringify(w)),exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now(),weightChanges:{}};
   clearInterval(liveTimer);renderLive();showScreen("live");
 }
 window.startLive=startLive;
@@ -463,10 +463,48 @@ window.startLive=startLive;
 function renderLive(){
   const sc=document.getElementById("screen-live");
   if(liveState.done){
-    sc.innerHTML=`<div class="done-screen"><span class="trophy">🏆</span>
-      <h2>Allenamento completato!</h2>
-      <p style="color:var(--muted)">Ottimo lavoro, ${esc(profile.name||"")}!</p>
-      <button class="btn-primary" style="max-width:280px" onclick="endLive()">Torna alle schede</button></div>`;
+    const changes=liveState.pendingWeightUpdate||{};
+    const changeKeys=Object.keys(changes);
+    const duration=liveState.startTime?Math.round((Date.now()-liveState.startTime)/1000):0;
+    const mins=Math.floor(duration/60), secs=duration%60;
+    const durStr=mins>0?`${mins}min ${secs}s`:`${secs}s`;
+
+    let weightPrompt="";
+    if(changeKeys.length>0){
+      const rows=changeKeys.map(i=>{
+        const c=changes[i];
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--sub)">
+          <span style="color:#ccc;font-size:13px">${esc(c.name)}</span>
+          <span style="font-size:13px">
+            <span style="color:#555;text-decoration:line-through">${c.oldWeight||"—"}</span>
+            <span style="color:var(--accent);margin-left:6px">→ ${c.newWeight||"—"} kg</span>
+          </span>
+        </div>`;
+      }).join("");
+      weightPrompt=`
+        <div style="background:var(--card);border-radius:16px;padding:16px;width:100%;max-width:320px;border:1px solid var(--border);margin-top:4px">
+          <p style="color:#fff;font-weight:700;margin-bottom:10px;font-size:14px">💾 Aggiornare i pesi nella scheda?</p>
+          ${rows}
+          <div style="display:flex;gap:10px;margin-top:14px">
+            <button onclick="updateWorkoutWeights().then(endLive)"
+              style="flex:1;padding:12px;background:var(--accent);color:#0a0a14;border:none;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit">
+              ✅ Aggiorna
+            </button>
+            <button onclick="endLive()"
+              style="flex:1;padding:12px;background:var(--sub);color:var(--muted);border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">
+              No
+            </button>
+          </div>
+        </div>`;
+    }
+
+    sc.innerHTML=`<div class="done-screen">
+      <span class="trophy">🏆</span>
+      <h2>Completato!</h2>
+      <p style="color:var(--muted)">Ottimo lavoro, ${esc(profile.name||"")}! · ⏱ ${durStr}</p>
+      ${weightPrompt}
+      ${changeKeys.length===0?`<button class="btn-primary" style="max-width:280px" onclick="endLive()">Torna alle schede</button>`:""}
+    </div>`;
     return;
   }
   const w=liveState.workout, ex=w.exercises[liveState.exIdx];
@@ -509,7 +547,14 @@ function renderLive(){
         <div class="live-stats">
           <div><div class="live-stat-label">Serie</div><div class="live-stat-val">${liveState.setIdx+1} / ${tot}</div></div>
           <div><div class="live-stat-label">Ripetizioni</div><div class="live-stat-val">${ex.reps}</div></div>
-          <div><div class="live-stat-label">Peso</div><div class="live-stat-val">${ex.weight?ex.weight+" kg":"—"}</div></div>
+          <div>
+            <div class="live-stat-label">Peso (kg)</div>
+            <input type="number" id="live-weight-inp"
+              value="${ex.weight||""}"
+              placeholder="—"
+              oninput="updLiveWeight(this.value)"
+              style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:var(--accent);font-size:20px;font-weight:900;font-family:inherit;outline:none;">
+          </div>
         </div>
       </div>
       ${actionH}
@@ -517,12 +562,22 @@ function renderLive(){
     </div>`;
 }
 
+function updLiveWeight(val){
+  const ex=liveState.workout.exercises[liveState.exIdx];
+  const oldWeight=ex.weight||"";
+  ex.weight=val;
+  if(val!==oldWeight){
+    liveState.weightChanges[liveState.exIdx]={name:ex.name,oldWeight:oldWeight,newWeight:val};
+  }
+}
+window.updLiveWeight=updLiveWeight;
+
 function completeSet(){
   const w=liveState.workout, ex=w.exercises[liveState.exIdx];
   const tot=Number(ex.sets), next=liveState.setIdx+1;
   if(next>=tot){
     const nex=liveState.exIdx+1;
-    if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();renderLive();return}
+    if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return}
     liveState.exIdx=nex;liveState.setIdx=0;liveState.customRest=null;
   }else liveState.setIdx=next;
   const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
@@ -743,6 +798,31 @@ async function saveGoals(){
 window.saveGoals=saveGoals;
 
 // ─── WORKOUT HISTORY ──────────────────────────────────────────────────────────
+function checkWeightChanges(){
+  const changes=liveState.weightChanges||{};
+  const keys=Object.keys(changes);
+  if(keys.length===0) return;
+  // Store pending changes for the done screen to pick up
+  liveState.pendingWeightUpdate=changes;
+}
+
+async function updateWorkoutWeights(){
+  const changes=liveState.pendingWeightUpdate||{};
+  const keys=Object.keys(changes);
+  if(keys.length===0) return;
+  // Find the original workout doc
+  const wktId=liveState.workout.id;
+  const wkt=workouts.find(w=>w.id===wktId);
+  if(!wkt) return;
+  const updated=JSON.parse(JSON.stringify(wkt));
+  keys.forEach(idx=>{
+    if(updated.exercises[idx]) updated.exercises[idx].weight=changes[idx].newWeight;
+  });
+  await saveWktToDB(updated);
+  toast("✓ Pesi aggiornati nella scheda!");
+}
+window.updateWorkoutWeights=updateWorkoutWeights;
+
 async function saveWorkoutSession(){
   const w=liveState.workout;
   const duration=liveState.startTime?Math.round((Date.now()-liveState.startTime)/1000):0;
