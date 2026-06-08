@@ -552,6 +552,7 @@ function renderLive(){
             <input type="number" id="live-weight-inp"
               value="${ex.weight||""}"
               placeholder="—"
+              onfocus="captureLiveWeightOld(this.value)"
               oninput="updLiveWeight(this.value)"
               style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:var(--accent);font-size:20px;font-weight:900;font-family:inherit;outline:none;">
           </div>
@@ -562,11 +563,20 @@ function renderLive(){
     </div>`;
 }
 
+function captureLiveWeightOld(val){
+  // Salva il peso originale al momento del focus (prima della digitazione)
+  if(liveState._focusedExIdx !== liveState.exIdx){
+    liveState._originalWeight = val;
+    liveState._focusedExIdx = liveState.exIdx;
+  }
+}
+window.captureLiveWeightOld=captureLiveWeightOld;
+
 function updLiveWeight(val){
   const ex=liveState.workout.exercises[liveState.exIdx];
-  const oldWeight=ex.weight||"";
+  const oldWeight=liveState._originalWeight!==undefined ? liveState._originalWeight : (ex.weight||"");
   ex.weight=val;
-  if(val!==oldWeight){
+  if(val && val!==oldWeight){
     liveState.weightChanges[liveState.exIdx]={name:ex.name,oldWeight:oldWeight,newWeight:val};
   }
 }
@@ -578,7 +588,7 @@ function completeSet(){
   if(next>=tot){
     const nex=liveState.exIdx+1;
     if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return}
-    liveState.exIdx=nex;liveState.setIdx=0;liveState.customRest=null;
+    liveState.exIdx=nex;liveState.setIdx=0;liveState.customRest=null;liveState._focusedExIdx=-1;liveState._originalWeight=undefined;
   }else liveState.setIdx=next;
   const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
   if(rs>0){
