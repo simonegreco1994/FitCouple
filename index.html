@@ -972,15 +972,18 @@ function calcTDEE(weight,height,age,gender,activity){
   return Math.round(bmr*(actMap[activity]||1.55));
 }
 function calcMacros(tdee,goal,weight){
-  // Proteine: 1.4g per kg di peso corporeo
+  // 1. Proteine: 1.4g × kg peso corporeo → × 4 kcal/g
   const protein=Math.round(1.4*weight);
   const proteinKcal=protein*4;
-  // Carboidrati: 55% del fabbisogno totale
-  const carbs=Math.round(tdee*0.55/4);
-  const carbsKcal=carbs*4;
-  // Grassi: max 25% del fabbisogno totale
-  const fat=Math.round(tdee*0.25/9);
-  return {protein,carbs,fat};
+  // 2. Kcal rimanenti dopo le proteine
+  const remaining=tdee-proteinKcal;
+  // 3. Grassi: 25% delle kcal rimanenti → / 9 kcal/g
+  const fatKcal=Math.round(remaining*0.25);
+  const fat=Math.round(fatKcal/9);
+  // 4. Carbo: il restante → / 4 kcal/g
+  const carbsKcal=remaining-fatKcal;
+  const carbs=Math.round(carbsKcal/4);
+  return {protein,carbs,fat,totalKcal:tdee};
 }
 
 async function renderProfileTab(){
@@ -1031,8 +1034,9 @@ async function renderProfileTab(){
       <div style="color:var(--accent);font-weight:700;margin-bottom:12px">⚡ TDEE & Macros consigliati</div>
       <div style="text-align:center;margin-bottom:14px">
         <div style="color:var(--muted);font-size:12px">Fabbisogno calorico giornaliero</div>
-        <div style="font-size:38px;font-weight:900;color:var(--accent)">${tdee}</div>
+        <div style="font-size:38px;font-weight:900;color:var(--accent)">${macros.totalKcal}</div>
         <div style="color:var(--muted);font-size:12px">kcal/giorno · ${goalLabels[pp.goal]||""}</div>
+        <div style="color:#555;font-size:11px;margin-top:2px">TDEE base: ${tdee} kcal</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
         ${[["💪","Proteine",macros.protein,"var(--accent2)"],["🌾","Carbo",macros.carbs,"var(--orange)"],["🥑","Grassi",macros.fat,"var(--red)"]].map(([ic,l,v,c])=>`
