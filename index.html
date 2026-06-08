@@ -730,12 +730,22 @@ function srchFood(q){
   if(!q.trim()){res.innerHTML="";return}
   const m=FOOD_DB.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
   if(!m.length){res.innerHTML=`<p style="color:var(--muted);font-size:13px">Nessun risultato.</p>`;return}
-  res.innerHTML=m.map(f=>`<div class="card food-result" onclick="selFood(${JSON.stringify(f.name)})">
+  window._lastFoodResults=m;
+  res.innerHTML=m.map((f,i)=>`<div class="card food-result" onclick="selFoodByIdx(${i},this)">
     <div class="card-title">${esc(f.name)}</div>
     <div class="card-sub">per ${f.unit}: ${f.kcal} kcal · P ${f.protein}g · C ${f.carbs}g · G ${f.fat}g</div>
   </div>`).join("");
 }
 window.srchFood=srchFood;
+
+function selFoodByIdx(idx,el){
+  const list=window._lastFoodResults||FOOD_DB;
+  selectedFood=list[idx];
+  document.querySelectorAll(".food-result").forEach(e=>e.classList.remove("selected"));
+  if(el)el.classList.add("selected");
+  document.getElementById("food-qty").style.display="block";updFoodPreview();
+}
+window.selFoodByIdx=selFoodByIdx;
 
 function selFood(name){
   selectedFood=FOOD_DB.find(f=>f.name===name);
