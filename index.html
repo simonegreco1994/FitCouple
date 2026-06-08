@@ -426,11 +426,11 @@ function renderWktEditor(){
     <button class="btn-primary" onclick="saveWkt()">💾 Salva scheda</button>`;
 }
 
-function addEx(){editingWkt.exercises.push({id:uid(),name:"",sets:3,reps:10,weight:"",rest:90});renderWktEditor()}
+function addEx(){const inp=document.getElementById("wkt-name-inp");if(inp)editingWkt.name=inp.value;editingWkt.exercises.push({id:uid(),name:"",sets:3,reps:10,weight:"",rest:90});renderWktEditor()}
 window.addEx=addEx;
 function updEx(i,f,v){editingWkt.exercises[i][f]=v}
 window.updEx=updEx;
-function rmEx(i){editingWkt.exercises.splice(i,1);renderWktEditor()}
+function rmEx(i){const inp=document.getElementById("wkt-name-inp");if(inp)editingWkt.name=inp.value;editingWkt.exercises.splice(i,1);renderWktEditor()}
 window.rmEx=rmEx;
 
 async function saveWkt(){
