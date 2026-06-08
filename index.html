@@ -1114,14 +1114,7 @@ window.renderProfileTab=renderProfileTab;
 function updatePhysique(field,val){
   if(!profile.physique)profile.physique={weight:"",height:"",age:"",gender:"M",activity:"moderate",goal:"maintain"};
   profile.physique[field]=val;
-  // live recalc
-  const pp=profile.physique;
-  const bmi=calcBMI(Number(pp.weight),Number(pp.height));
-  if(bmi||Number(pp.age)){
-    // debounce re-render
-    clearTimeout(window._physiqueTimer);
-    window._physiqueTimer=setTimeout(()=>renderProfileTab(),600);
-  }
+  // aggiorna solo in memoria, nessun re-render automatico
 }
 window.updatePhysique=updatePhysique;
 
