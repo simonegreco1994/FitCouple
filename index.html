@@ -972,8 +972,9 @@ function calcTDEE(weight,height,age,gender,activity){
   return Math.round(bmr*(actMap[activity]||1.55));
 }
 function calcMacros(tdee,goal,weight){
-  // 1. Proteine: 1.4g × kg peso corporeo → × 4 kcal/g
-  const protein=Math.round(1.4*weight);
+  // 1. Proteine: moltiplicatore varia per obiettivo
+  const proteinMult={bulk:1.6,cut:1.4,maintain:1.2,recomp:1.5};
+  const protein=Math.round((proteinMult[goal]||1.4)*weight);
   const proteinKcal=protein*4;
   // 2. Kcal rimanenti dopo le proteine
   const remaining=tdee-proteinKcal;
