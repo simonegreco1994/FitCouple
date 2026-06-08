@@ -943,9 +943,11 @@ function bmiCategory(bmi){
 }
 function calcIdealWeight(height,gender){
   if(!height)return null;
-  // Formula di Devine
-  const h=height-152.4;
-  return gender==="F" ? Math.round(45.5+0.9*(h/2.54)*10)/10 : Math.round(50+0.9*(h/2.54)*10)/10;
+  // Formula di Devine: 50 + 2.3 * (altezza_pollici - 60)
+  const inches=height/2.54;
+  return gender==="F"
+    ? Math.round((45.5+2.3*(inches-60))*10)/10
+    : Math.round((50+2.3*(inches-60))*10)/10;
 }
 function calcTDEE(weight,height,age,gender,activity){
   if(!weight||!height||!age)return null;
