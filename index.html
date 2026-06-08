@@ -113,6 +113,10 @@ input:focus{border-color:var(--accent)}
 .done-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:20px;padding:40px;text-align:center}
 .done-screen .trophy{font-size:88px}
 .done-screen h2{color:var(--accent);font-size:28px;font-weight:900}
+/* GROUP PILLS */
+.group-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.group-pill{padding:5px 12px;border-radius:20px;background:var(--sub);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.group-pill.active{background:var(--accent);color:#0a0a14;border-color:var(--accent)}
 /* FOOD */
 .food-result{cursor:pointer;transition:border-color .15s}
 .food-result.selected{border-color:var(--accent);background:rgba(232,255,71,.04)}
@@ -227,33 +231,115 @@ setPersistence(auth, browserLocalPersistence).catch(e=>console.warn("Persistence
 
 // ─── FOOD DB ─────────────────────────────────────────────────────────────────
 const FOOD_DB=[
-  {name:"Petto di Pollo (cotto)",kcal:165,protein:31,carbs:0,fat:3.6,unit:"100g"},
-  {name:"Riso Bianco (cotto)",kcal:130,protein:2.7,carbs:28,fat:0.3,unit:"100g"},
-  {name:"Pasta (cotta)",kcal:158,protein:5.8,carbs:31,fat:0.9,unit:"100g"},
-  {name:"Uovo intero",kcal:78,protein:6,carbs:0.6,fat:5,unit:"1 uovo ~50g"},
-  {name:"Albume d'uovo",kcal:17,protein:3.6,carbs:0.2,fat:0,unit:"1 albume ~30g"},
-  {name:"Salmone",kcal:208,protein:20,carbs:0,fat:13,unit:"100g"},
-  {name:"Tonno al naturale",kcal:116,protein:26,carbs:0,fat:1,unit:"100g"},
-  {name:"Avena (cruda)",kcal:389,protein:17,carbs:66,fat:7,unit:"100g"},
-  {name:"Mozzarella",kcal:280,protein:18,carbs:3,fat:22,unit:"100g"},
-  {name:"Parmigiano",kcal:431,protein:38,carbs:0,fat:29,unit:"100g"},
-  {name:"Latte intero",kcal:61,protein:3.2,carbs:4.8,fat:3.3,unit:"100ml"},
-  {name:"Yogurt greco 0%",kcal:57,protein:10,carbs:4,fat:0.1,unit:"100g"},
-  {name:"Pane integrale",kcal:247,protein:9,carbs:44,fat:3,unit:"100g"},
-  {name:"Banana",kcal:89,protein:1.1,carbs:23,fat:0.3,unit:"100g"},
-  {name:"Mela",kcal:52,protein:0.3,carbs:14,fat:0.2,unit:"100g"},
-  {name:"Mandorle",kcal:579,protein:21,carbs:22,fat:50,unit:"100g"},
-  {name:"Olio d'Oliva EVO",kcal:884,protein:0,carbs:0,fat:100,unit:"100ml"},
-  {name:"Ricotta",kcal:174,protein:11,carbs:3,fat:13,unit:"100g"},
-  {name:"Bresaola",kcal:151,protein:32,carbs:0,fat:2,unit:"100g"},
-  {name:"Patate (cotte)",kcal:87,protein:2,carbs:20,fat:0.1,unit:"100g"},
-  {name:"Broccoli",kcal:35,protein:2.4,carbs:7,fat:0.4,unit:"100g"},
-  {name:"Spinaci",kcal:23,protein:2.9,carbs:3.6,fat:0.4,unit:"100g"},
-  {name:"Whey Protein",kcal:120,protein:24,carbs:3,fat:2,unit:"1 scoop ~30g"},
-  {name:"Caffè espresso",kcal:2,protein:0.2,carbs:0.3,fat:0,unit:"30ml"},
-  {name:"Fiocchi di latte",kcal:103,protein:11,carbs:4,fat:4,unit:"100g"},
-  {name:"Carne macinata magra",kcal:218,protein:26,carbs:0,fat:12,unit:"100g"},
-  {name:"Tacchino (cotto)",kcal:189,protein:29,carbs:0,fat:7,unit:"100g"},
+  // CARNI
+  {name:"Petto di Pollo (cotto)",kcal:165,protein:31,carbs:0,fat:3.6,unit:"100g",cat:"Carni"},
+  {name:"Coscia di Pollo (cotta)",kcal:215,protein:26,carbs:0,fat:12,unit:"100g",cat:"Carni"},
+  {name:"Tacchino (cotto)",kcal:189,protein:29,carbs:0,fat:7,unit:"100g",cat:"Carni"},
+  {name:"Carne macinata magra",kcal:218,protein:26,carbs:0,fat:12,unit:"100g",cat:"Carni"},
+  {name:"Manzo (bistecca)",kcal:271,protein:26,carbs:0,fat:18,unit:"100g",cat:"Carni"},
+  {name:"Vitello",kcal:175,protein:21,carbs:0,fat:10,unit:"100g",cat:"Carni"},
+  {name:"Maiale (lonza)",kcal:182,protein:22,carbs:0,fat:10,unit:"100g",cat:"Carni"},
+  {name:"Bresaola",kcal:151,protein:32,carbs:0,fat:2,unit:"100g",cat:"Carni"},
+  {name:"Prosciutto cotto",kcal:215,protein:19,carbs:1,fat:15,unit:"100g",cat:"Carni"},
+  {name:"Prosciutto crudo",kcal:268,protein:26,carbs:0,fat:18,unit:"100g",cat:"Carni"},
+  {name:"Speck",kcal:285,protein:25,carbs:0,fat:20,unit:"100g",cat:"Carni"},
+  {name:"Mortadella",kcal:311,protein:14,carbs:1.5,fat:28,unit:"100g",cat:"Carni"},
+  // PESCE
+  {name:"Salmone",kcal:208,protein:20,carbs:0,fat:13,unit:"100g",cat:"Pesce"},
+  {name:"Tonno al naturale",kcal:116,protein:26,carbs:0,fat:1,unit:"100g",cat:"Pesce"},
+  {name:"Tonno sott'olio (sgocciolato)",kcal:198,protein:29,carbs:0,fat:9,unit:"100g",cat:"Pesce"},
+  {name:"Merluzzo",kcal:82,protein:18,carbs:0,fat:0.7,unit:"100g",cat:"Pesce"},
+  {name:"Branzino",kcal:97,protein:18,carbs:0,fat:2.5,unit:"100g",cat:"Pesce"},
+  {name:"Orata",kcal:121,protein:20,carbs:0,fat:4,unit:"100g",cat:"Pesce"},
+  {name:"Sgombro",kcal:205,protein:19,carbs:0,fat:14,unit:"100g",cat:"Pesce"},
+  {name:"Gamberi",kcal:85,protein:18,carbs:0.9,fat:0.9,unit:"100g",cat:"Pesce"},
+  {name:"Polpo (cotto)",kcal:82,protein:15,carbs:2.2,fat:1,unit:"100g",cat:"Pesce"},
+  // UOVA E LATTICINI
+  {name:"Uovo intero",kcal:78,protein:6,carbs:0.6,fat:5,unit:"1 uovo ~50g",cat:"Uova e Latticini"},
+  {name:"Albume d'uovo",kcal:17,protein:3.6,carbs:0.2,fat:0,unit:"1 albume ~30g",cat:"Uova e Latticini"},
+  {name:"Latte intero",kcal:61,protein:3.2,carbs:4.8,fat:3.3,unit:"100ml",cat:"Uova e Latticini"},
+  {name:"Latte parzialmente scremato",kcal:46,protein:3.3,carbs:4.7,fat:1.6,unit:"100ml",cat:"Uova e Latticini"},
+  {name:"Yogurt greco 0%",kcal:57,protein:10,carbs:4,fat:0.1,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Yogurt greco intero",kcal:97,protein:9,carbs:4,fat:5,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Yogurt bianco intero",kcal:63,protein:3.5,carbs:4.7,fat:3.2,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Mozzarella",kcal:280,protein:18,carbs:3,fat:22,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Mozzarella light",kcal:152,protein:18,carbs:3,fat:7,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Parmigiano",kcal:431,protein:38,carbs:0,fat:29,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Ricotta vaccina",kcal:174,protein:11,carbs:3,fat:13,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Fiocchi di latte",kcal:103,protein:11,carbs:4,fat:4,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Grana Padano",kcal:384,protein:33,carbs:0,fat:28,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Pecorino",kcal:419,protein:26,carbs:0.5,fat:35,unit:"100g",cat:"Uova e Latticini"},
+  {name:"Stracchino",kcal:256,protein:16,carbs:2,fat:21,unit:"100g",cat:"Uova e Latticini"},
+  // CEREALI E CARBOIDRATI
+  {name:"Pasta (cotta)",kcal:158,protein:5.8,carbs:31,fat:0.9,unit:"100g",cat:"Cereali"},
+  {name:"Pasta integrale (cotta)",kcal:149,protein:5.5,carbs:28,fat:1.1,unit:"100g",cat:"Cereali"},
+  {name:"Riso Bianco (cotto)",kcal:130,protein:2.7,carbs:28,fat:0.3,unit:"100g",cat:"Cereali"},
+  {name:"Riso integrale (cotto)",kcal:123,protein:2.6,carbs:26,fat:0.9,unit:"100g",cat:"Cereali"},
+  {name:"Avena (cruda)",kcal:389,protein:17,carbs:66,fat:7,unit:"100g",cat:"Cereali"},
+  {name:"Pane bianco",kcal:265,protein:8,carbs:53,fat:2,unit:"100g",cat:"Cereali"},
+  {name:"Pane integrale",kcal:247,protein:9,carbs:44,fat:3,unit:"100g",cat:"Cereali"},
+  {name:"Farro (cotto)",kcal:150,protein:6,carbs:28,fat:1,unit:"100g",cat:"Cereali"},
+  {name:"Quinoa (cotta)",kcal:120,protein:4.4,carbs:22,fat:1.9,unit:"100g",cat:"Cereali"},
+  {name:"Cous cous (cotto)",kcal:112,protein:3.8,carbs:23,fat:0.2,unit:"100g",cat:"Cereali"},
+  {name:"Polenta (cotta)",kcal:72,protein:1.7,carbs:15,fat:0.4,unit:"100g",cat:"Cereali"},
+  {name:"Fette biscottate integrali",kcal:372,protein:10,carbs:70,fat:5,unit:"100g",cat:"Cereali"},
+  {name:"Gallette di riso",kcal:381,protein:8,carbs:81,fat:2.5,unit:"100g",cat:"Cereali"},
+  // VERDURE
+  {name:"Broccoli",kcal:35,protein:2.4,carbs:7,fat:0.4,unit:"100g",cat:"Verdure"},
+  {name:"Spinaci",kcal:23,protein:2.9,carbs:3.6,fat:0.4,unit:"100g",cat:"Verdure"},
+  {name:"Zucchine",kcal:17,protein:1.2,carbs:3.4,fat:0.1,unit:"100g",cat:"Verdure"},
+  {name:"Carote",kcal:41,protein:0.9,carbs:9.6,fat:0.2,unit:"100g",cat:"Verdure"},
+  {name:"Pomodori",kcal:18,protein:0.9,carbs:3.9,fat:0.2,unit:"100g",cat:"Verdure"},
+  {name:"Insalata mista",kcal:15,protein:1.3,carbs:2.3,fat:0.2,unit:"100g",cat:"Verdure"},
+  {name:"Fagiolini",kcal:31,protein:1.8,carbs:7,fat:0.1,unit:"100g",cat:"Verdure"},
+  {name:"Peperoni",kcal:31,protein:1,carbs:6,fat:0.3,unit:"100g",cat:"Verdure"},
+  {name:"Melanzane",kcal:24,protein:1.1,carbs:5.7,fat:0.1,unit:"100g",cat:"Verdure"},
+  {name:"Cavolfiore",kcal:25,protein:1.9,carbs:5,fat:0.3,unit:"100g",cat:"Verdure"},
+  {name:"Cavolo cappuccio",kcal:25,protein:1.3,carbs:5.8,fat:0.1,unit:"100g",cat:"Verdure"},
+  {name:"Asparagi",kcal:20,protein:2.2,carbs:3.9,fat:0.1,unit:"100g",cat:"Verdure"},
+  {name:"Funghi champignon",kcal:22,protein:3.1,carbs:3.3,fat:0.3,unit:"100g",cat:"Verdure"},
+  {name:"Cipolla",kcal:40,protein:1.1,carbs:9,fat:0.1,unit:"100g",cat:"Verdure"},
+  {name:"Aglio",kcal:149,protein:6.4,carbs:33,fat:0.5,unit:"100g",cat:"Verdure"},
+  {name:"Patate (cotte)",kcal:87,protein:2,carbs:20,fat:0.1,unit:"100g",cat:"Verdure"},
+  {name:"Patate dolci (cotte)",kcal:90,protein:2,carbs:21,fat:0.1,unit:"100g",cat:"Verdure"},
+  // FRUTTA
+  {name:"Banana",kcal:89,protein:1.1,carbs:23,fat:0.3,unit:"100g",cat:"Frutta"},
+  {name:"Mela",kcal:52,protein:0.3,carbs:14,fat:0.2,unit:"100g",cat:"Frutta"},
+  {name:"Arancia",kcal:47,protein:0.9,carbs:12,fat:0.1,unit:"100g",cat:"Frutta"},
+  {name:"Fragole",kcal:32,protein:0.7,carbs:7.7,fat:0.3,unit:"100g",cat:"Frutta"},
+  {name:"Kiwi",kcal:61,protein:1.1,carbs:15,fat:0.5,unit:"100g",cat:"Frutta"},
+  {name:"Pera",kcal:57,protein:0.4,carbs:15,fat:0.1,unit:"100g",cat:"Frutta"},
+  {name:"Uva",kcal:69,protein:0.7,carbs:18,fat:0.2,unit:"100g",cat:"Frutta"},
+  {name:"Anguria",kcal:30,protein:0.6,carbs:7.6,fat:0.2,unit:"100g",cat:"Frutta"},
+  {name:"Ananas",kcal:50,protein:0.5,carbs:13,fat:0.1,unit:"100g",cat:"Frutta"},
+  {name:"Avocado",kcal:160,protein:2,carbs:9,fat:15,unit:"100g",cat:"Frutta"},
+  {name:"Mirtilli",kcal:57,protein:0.7,carbs:14,fat:0.3,unit:"100g",cat:"Frutta"},
+  // GRASSI E CONDIMENTI
+  {name:"Olio d'Oliva EVO",kcal:884,protein:0,carbs:0,fat:100,unit:"100ml",cat:"Grassi"},
+  {name:"Burro",kcal:758,protein:0.6,carbs:0.6,fat:84,unit:"100g",cat:"Grassi"},
+  {name:"Mandorle",kcal:579,protein:21,carbs:22,fat:50,unit:"100g",cat:"Grassi"},
+  {name:"Noci",kcal:654,protein:15,carbs:14,fat:65,unit:"100g",cat:"Grassi"},
+  {name:"Anacardi",kcal:553,protein:18,carbs:30,fat:44,unit:"100g",cat:"Grassi"},
+  {name:"Arachidi",kcal:567,protein:26,carbs:16,fat:49,unit:"100g",cat:"Grassi"},
+  {name:"Burro di arachidi",kcal:588,protein:25,carbs:20,fat:50,unit:"100g",cat:"Grassi"},
+  {name:"Semi di chia",kcal:486,protein:17,carbs:42,fat:31,unit:"100g",cat:"Grassi"},
+  {name:"Semi di lino",kcal:534,protein:18,carbs:29,fat:42,unit:"100g",cat:"Grassi"},
+  // LEGUMI
+  {name:"Ceci (cotti)",kcal:164,protein:8.9,carbs:27,fat:2.6,unit:"100g",cat:"Legumi"},
+  {name:"Lenticchie (cotte)",kcal:116,protein:9,carbs:20,fat:0.4,unit:"100g",cat:"Legumi"},
+  {name:"Fagioli borlotti (cotti)",kcal:129,protein:8.7,carbs:23,fat:0.5,unit:"100g",cat:"Legumi"},
+  {name:"Fagioli neri (cotti)",kcal:132,protein:8.9,carbs:24,fat:0.5,unit:"100g",cat:"Legumi"},
+  {name:"Edamame",kcal:122,protein:11,carbs:10,fat:5,unit:"100g",cat:"Legumi"},
+  {name:"Tofu",kcal:76,protein:8,carbs:1.9,fat:4.2,unit:"100g",cat:"Legumi"},
+  // SPORT E INTEGRATORI
+  {name:"Whey Protein",kcal:120,protein:24,carbs:3,fat:2,unit:"1 scoop ~30g",cat:"Integratori"},
+  {name:"Creatina",kcal:0,protein:0,carbs:0,fat:0,unit:"5g",cat:"Integratori"},
+  {name:"Barretta proteica media",kcal:200,protein:20,carbs:20,fat:6,unit:"1 barretta ~60g",cat:"Integratori"},
+  // BEVANDE
+  {name:"Caffè espresso",kcal:2,protein:0.2,carbs:0.3,fat:0,unit:"30ml",cat:"Bevande"},
+  {name:"Latte di avena",kcal:46,protein:1,carbs:7.4,fat:1.5,unit:"100ml",cat:"Bevande"},
+  {name:"Latte di mandorla",kcal:24,protein:0.6,carbs:3.5,fat:1.1,unit:"100ml",cat:"Bevande"},
+  {name:"Succo d'arancia",kcal:45,protein:0.7,carbs:10,fat:0.2,unit:"100ml",cat:"Bevande"},
 ];
 const AVATARS=["🦁","🐯","🐺","🦊","🐻","🦋","🌸","⚡","🔥","🎯"];
 
@@ -686,17 +772,32 @@ function mbar(l,v,g,c){const p=Math.min((v/g)*100,100);return `<div class="macro
 async function openFoodAdd(){
   const el=document.getElementById("tab-nutrition");
   selectedFood=null;
+  // Load shared recipes from Firestore
+  let recipes=[];
+  try{
+    const snap=await getDocs(collection(db,"recipes"));
+    recipes=snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){console.error("recipes load:",e)}
+  window._sharedRecipes=recipes;
+
+  // Build category pills
+  const cats=["Tutti",...new Set(FOOD_DB.map(f=>f.cat||"Altro"))];
+  const pillsHtml=cats.map(c=>`<button class="group-pill${c==="Tutti"?" active":""}" onclick="filterFoodCat('${c}',this)">${c}</button>`).join("");
+
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <button class="btn-back" onclick="renderNutritionTab()">← Indietro</button>
       <h2 class="section-title" style="margin:0">Aggiungi alimento</h2>
     </div>
     <div class="toggle-group">
-      <button class="toggle-btn active" id="ftab-s" onclick="switchFoodTab('search')">🔍 Cerca</button>
+      <button class="toggle-btn active" id="ftab-s" onclick="switchFoodTab('search')">🔍 Alimenti</button>
+      <button class="toggle-btn" id="ftab-r" onclick="switchFoodTab('recipes')">🍽️ Ricette</button>
       <button class="toggle-btn" id="ftab-m" onclick="switchFoodTab('manual')">✏️ Manuale</button>
     </div>
+
     <div id="food-s">
-      <div class="form-group"><input type="text" placeholder="Cerca alimento…" oninput="srchFood(this.value)"></div>
+      <div class="form-group"><input type="text" id="food-search-inp" placeholder="🔍 Cerca per nome…" oninput="srchFood(this.value)"></div>
+      <div class="group-pills" style="margin-bottom:12px">${pillsHtml}</div>
       <div id="food-res"></div>
       <div id="food-qty" style="display:none">
         <div class="form-group"><label class="form-label">Quantità (g / ml)</label>
@@ -705,6 +806,14 @@ async function openFoodAdd(){
         <button class="btn-primary" onclick="addFromDB()">Aggiungi al diario</button>
       </div>
     </div>
+
+    <div id="food-r" style="display:none">
+      <button onclick="openNewRecipe()" style="width:100%;padding:12px;background:rgba(232,255,71,.1);color:var(--accent);border:1px solid var(--accent);border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:14px">
+        + Crea nuova ricetta
+      </button>
+      <div id="recipes-list"></div>
+    </div>
+
     <div id="food-m" style="display:none">
       <div class="form-group"><label class="form-label">Nome alimento</label><input type="text" id="m-name" placeholder="Es. Insalata mista"></div>
       <div class="form-group"><label class="form-label">Kcal</label><input type="number" id="m-kcal" placeholder="0"></div>
@@ -713,28 +822,57 @@ async function openFoodAdd(){
       <div class="form-group"><label class="form-label">Grassi (g)</label><input type="number" id="m-fat" placeholder="0"></div>
       <button class="btn-primary" onclick="addManual()">Aggiungi al diario</button>
     </div>`;
+
+  // Show all foods immediately
+  window._currentFoodCat="Tutti";
+  renderFoodList(FOOD_DB);
 }
 window.openFoodAdd=openFoodAdd;
 
 function switchFoodTab(t){
   document.getElementById("ftab-s").classList.toggle("active",t==="search");
+  document.getElementById("ftab-r").classList.toggle("active",t==="recipes");
   document.getElementById("ftab-m").classList.toggle("active",t==="manual");
   document.getElementById("food-s").style.display=t==="search"?"block":"none";
+  document.getElementById("food-r").style.display=t==="recipes"?"block":"none";
   document.getElementById("food-m").style.display=t==="manual"?"block":"none";
+  if(t==="recipes") renderRecipesList();
 }
 window.switchFoodTab=switchFoodTab;
 
-function srchFood(q){
+function renderFoodList(list){
   const res=document.getElementById("food-res");
+  if(!res) return;
   document.getElementById("food-qty").style.display="none"; selectedFood=null;
-  if(!q.trim()){res.innerHTML="";return}
-  const m=FOOD_DB.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
-  if(!m.length){res.innerHTML=`<p style="color:var(--muted);font-size:13px">Nessun risultato.</p>`;return}
-  window._lastFoodResults=m;
-  res.innerHTML=m.map((f,i)=>`<div class="card food-result" onclick="selFoodByIdx(${i},this)">
+  if(!list.length){res.innerHTML=`<p style="color:var(--muted);font-size:13px">Nessun risultato.</p>`;return}
+  window._lastFoodResults=list;
+  res.innerHTML=list.map((f,i)=>`<div class="card food-result" onclick="selFoodByIdx(${i},this)">
     <div class="card-title">${esc(f.name)}</div>
-    <div class="card-sub">per ${f.unit}: ${f.kcal} kcal · P ${f.protein}g · C ${f.carbs}g · G ${f.fat}g</div>
+    <div class="card-sub">${f.cat?" ["+f.cat+"] · ":""}per ${f.unit}: ${f.kcal} kcal · P ${f.protein}g · C ${f.carbs}g · G ${f.fat}g</div>
   </div>`).join("");
+}
+window.renderFoodList=renderFoodList;
+
+function filterFoodCat(cat,btn){
+  window._currentFoodCat=cat;
+  document.querySelectorAll(".group-pill").forEach(b=>b.classList.remove("active"));
+  if(btn) btn.classList.add("active");
+  const q=(document.getElementById("food-search-inp")||{}).value||"";
+  srchFood(q);
+}
+window.filterFoodCat=filterFoodCat;
+
+function srchFood(q){
+  let list=FOOD_DB;
+  const cat=window._currentFoodCat||"Tutti";
+  if(cat!=="Tutti") list=list.filter(f=>(f.cat||"Altro")===cat);
+  if(q.trim()) list=list.filter(f=>f.name.toLowerCase().includes(q.toLowerCase()));
+  // Also include matching recipes
+  const recipes=window._sharedRecipes||[];
+  const matchingRecipes=recipes.filter(r=>!q.trim()||r.name.toLowerCase().includes(q.toLowerCase()))
+    .map(r=>({name:r.name+" 🍽️",kcal:r.totals.kcal,protein:r.totals.protein,carbs:r.totals.carbs,fat:r.totals.fat,unit:"1 porzione",cat:"Ricette",_recipeId:r.id,_portions:r.portions||1}));
+  list=[...list,...matchingRecipes];
+  renderFoodList(list);
 }
 window.srchFood=srchFood;
 
@@ -1160,6 +1298,169 @@ async function applyMacrosToGoals(kcal,protein,carbs,fat){
   toast("✓ Obiettivi nutrizione aggiornati!");
 }
 window.applyMacrosToGoals=applyMacrosToGoals;
+
+// ─── RECIPES ─────────────────────────────────────────────────────────────────
+function renderRecipesList(){
+  const el=document.getElementById("recipes-list");
+  if(!el) return;
+  const recipes=window._sharedRecipes||[];
+  if(!recipes.length){
+    el.innerHTML=`<p class="empty" style="margin-top:20px">Nessuna ricetta condivisa.<br>Creane una! 🍽️</p>`;
+    return;
+  }
+  el.innerHTML=recipes.map(r=>`
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1">
+          <div class="card-title">${esc(r.name)}</div>
+          <div class="card-sub">${r.portions||1} porzione/i · ${Math.round(r.totals.kcal)} kcal · P ${Math.round(r.totals.protein)}g · C ${Math.round(r.totals.carbs)}g · G ${Math.round(r.totals.fat)}g</div>
+          <div class="card-sub" style="margin-top:2px;color:#555">Creata da ${esc(r.createdBy||"")}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn-icon success" onclick="addRecipeToDiary('${r.id}')">+</button>
+          <button class="btn-icon danger" onclick="deleteRecipe('${r.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`).join("");
+}
+window.renderRecipesList=renderRecipesList;
+
+function openNewRecipe(){
+  const el=document.getElementById("tab-nutrition");
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <button class="btn-back" onclick="openFoodAdd()">← Indietro</button>
+      <h2 class="section-title" style="margin:0">Nuova ricetta</h2>
+    </div>
+    <div class="form-group"><label class="form-label">Nome ricetta</label>
+      <input type="text" id="rec-name" placeholder="Es. Pasta al tonno, Bowl proteica…"></div>
+    <div class="form-group"><label class="form-label">Porzioni</label>
+      <input type="number" id="rec-portions" value="1" min="1"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="color:var(--accent);font-weight:700;font-size:14px">Ingredienti</span>
+      <button class="btn-add" onclick="addRecipeIngredient()">+ Aggiungi</button>
+    </div>
+    <div id="rec-ingredients"></div>
+    <div id="rec-totals" class="card" style="margin-bottom:12px;display:none">
+      <div style="color:var(--accent);font-weight:700;margin-bottom:8px">📊 Totali ricetta</div>
+      <div id="rec-totals-content"></div>
+    </div>
+    <button class="btn-primary" onclick="saveRecipe()">💾 Salva ricetta condivisa</button>`;
+  window._recipeIngredients=[];
+}
+window.openNewRecipe=openNewRecipe;
+
+function addRecipeIngredient(){
+  const idx=window._recipeIngredients.length;
+  window._recipeIngredients.push({foodIdx:-1,qty:100});
+  renderRecipeIngredients();
+}
+window.addRecipeIngredient=addRecipeIngredient;
+
+function renderRecipeIngredients(){
+  const el=document.getElementById("rec-ingredients");
+  if(!el) return;
+  el.innerHTML=window._recipeIngredients.map((ing,i)=>`
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div style="flex:1">
+          <label class="form-label">Alimento</label>
+          <select onchange="setRecipeFood(${i},this.value)"
+            style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px;color:#fff;font-size:13px;font-family:inherit;outline:none">
+            <option value="-1">Seleziona…</option>
+            ${FOOD_DB.map((f,fi)=>`<option value="${fi}" ${ing.foodIdx===fi?"selected":""}>${f.name}</option>`).join("")}
+          </select>
+        </div>
+        <div style="width:80px">
+          <label class="form-label">g/ml</label>
+          <input type="number" value="${ing.qty}" min="1" oninput="setRecipeQty(${i},this.value)"
+            style="border-radius:10px;padding:10px;font-size:13px">
+        </div>
+        <button class="btn-icon danger" onclick="rmRecipeIng(${i})">🗑️</button>
+      </div>
+      ${ing.foodIdx>=0?`<div style="color:var(--muted);font-size:11px;margin-top:6px">${calcIngLine(ing)}</div>`:""}
+    </div>`).join("");
+  updateRecipeTotals();
+}
+
+function calcIngLine(ing){
+  const f=FOOD_DB[ing.foodIdx]; if(!f) return "";
+  const r=ing.qty/100;
+  return `${Math.round(f.kcal*r)} kcal · P ${Math.round(f.protein*r*10)/10}g · C ${Math.round(f.carbs*r*10)/10}g · G ${Math.round(f.fat*r*10)/10}g`;
+}
+
+function setRecipeFood(i,val){window._recipeIngredients[i].foodIdx=Number(val);renderRecipeIngredients()}
+window.setRecipeFood=setRecipeFood;
+function setRecipeQty(i,val){window._recipeIngredients[i].qty=Number(val)||0;renderRecipeIngredients()}
+window.setRecipeQty=setRecipeQty;
+function rmRecipeIng(i){window._recipeIngredients.splice(i,1);renderRecipeIngredients()}
+window.rmRecipeIng=rmRecipeIng;
+
+function updateRecipeTotals(){
+  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0);
+  if(!ings.length){document.getElementById("rec-totals").style.display="none";return}
+  const tot=ings.reduce((a,ing)=>{
+    const f=FOOD_DB[ing.foodIdx],r=ing.qty/100;
+    return {kcal:a.kcal+f.kcal*r,protein:a.protein+f.protein*r,carbs:a.carbs+f.carbs*r,fat:a.fat+f.fat*r};
+  },{kcal:0,protein:0,carbs:0,fat:0});
+  const portions=Number(document.getElementById("rec-portions")?.value)||1;
+  document.getElementById("rec-totals").style.display="block";
+  document.getElementById("rec-totals-content").innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+      ${[["🔥 Totale",Math.round(tot.kcal),"kcal"],["💪 Proteine",Math.round(tot.protein*10)/10,"g"],["🌾 Carbo",Math.round(tot.carbs*10)/10,"g"],["🥑 Grassi",Math.round(tot.fat*10)/10,"g"]].map(([l,v,u])=>`
+        <div style="background:var(--sub);border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:11px;color:var(--muted)">${l}</div>
+          <div style="font-weight:800;color:#fff">${v}${u}</div>
+        </div>`).join("")}
+    </div>
+    ${portions>1?`<div style="font-size:12px;color:var(--muted);text-align:center">Per porzione: ${Math.round(tot.kcal/portions)} kcal · P ${Math.round(tot.protein/portions*10)/10}g · C ${Math.round(tot.carbs/portions*10)/10}g · G ${Math.round(tot.fat/portions*10)/10}g</div>`:""}`;
+  window._currentRecipeTotals=tot;
+}
+window.updateRecipeTotals=updateRecipeTotals;
+
+async function saveRecipe(){
+  const name=document.getElementById("rec-name").value.trim();
+  if(!name){alert("Dai un nome alla ricetta!");return}
+  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0);
+  if(!ings.length){alert("Aggiungi almeno un ingrediente!");return}
+  const portions=Number(document.getElementById("rec-portions").value)||1;
+  const tot=window._currentRecipeTotals||{kcal:0,protein:0,carbs:0,fat:0};
+  const recipe={
+    name, portions,
+    createdBy:profile.name||CU.email,
+    createdAt:new Date().toISOString(),
+    ingredients:ings.map(i=>({foodName:FOOD_DB[i.foodIdx].name,qty:i.qty})),
+    totals:{kcal:Math.round(tot.kcal),protein:Math.round(tot.protein*10)/10,carbs:Math.round(tot.carbs*10)/10,fat:Math.round(tot.fat*10)/10}
+  };
+  await addDoc(collection(db,"recipes"),recipe);
+  toast("✓ Ricetta salvata e condivisa!");
+  openFoodAdd();
+}
+window.saveRecipe=saveRecipe;
+
+async function addRecipeToDiary(id){
+  const r=window._sharedRecipes.find(x=>x.id===id);
+  if(!r) return;
+  const portions=r.portions||1;
+  await _addEntry({
+    name:`${r.name} (1/${portions} porzione)`,
+    kcal:Math.round(r.totals.kcal/portions),
+    protein:Math.round(r.totals.protein/portions*10)/10,
+    carbs:Math.round(r.totals.carbs/portions*10)/10,
+    fat:Math.round(r.totals.fat/portions*10)/10
+  });
+  toast("✓ Ricetta aggiunta al diario!");
+}
+window.addRecipeToDiary=addRecipeToDiary;
+
+async function deleteRecipe(id){
+  if(!confirm("Eliminare questa ricetta?")) return;
+  await deleteDoc(doc(db,"recipes",id));
+  window._sharedRecipes=window._sharedRecipes.filter(r=>r.id!==id);
+  renderRecipesList();
+  toast("🗑 Ricetta eliminata");
+}
+window.deleteRecipe=deleteRecipe;
 </script>
 </body>
 </html>
