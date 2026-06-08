@@ -971,20 +971,16 @@ function calcTDEE(weight,height,age,gender,activity){
   const actMap={sedentary:1.2,light:1.375,moderate:1.55,active:1.725,veryactive:1.9};
   return Math.round(bmr*(actMap[activity]||1.55));
 }
-function calcMacros(tdee,goal){
-  // Distribuzione per obiettivo
-  const dist={
-    bulk:{protein:0.3,carbs:0.5,fat:0.2},
-    cut:{protein:0.4,carbs:0.35,fat:0.25},
-    maintain:{protein:0.3,carbs:0.45,fat:0.25},
-    recomp:{protein:0.35,carbs:0.4,fat:0.25},
-  };
-  const d=dist[goal]||dist.maintain;
-  return {
-    protein:Math.round(tdee*d.protein/4),
-    carbs:Math.round(tdee*d.carbs/4),
-    fat:Math.round(tdee*d.fat/9),
-  };
+function calcMacros(tdee,goal,weight){
+  // Proteine: 1.4g per kg di peso corporeo
+  const protein=Math.round(1.4*weight);
+  const proteinKcal=protein*4;
+  // Carboidrati: 55% del fabbisogno totale
+  const carbs=Math.round(tdee*0.55/4);
+  const carbsKcal=carbs*4;
+  // Grassi: max 25% del fabbisogno totale
+  const fat=Math.round(tdee*0.25/9);
+  return {protein,carbs,fat};
 }
 
 async function renderProfileTab(){
@@ -997,7 +993,7 @@ async function renderProfileTab(){
   const bmiCat=bmi?bmiCategory(bmi):null;
   const idealW=calcIdealWeight(Number(pp.height));
   const tdee=calcTDEE(Number(pp.weight),Number(pp.height),Number(pp.age),pp.gender,pp.activity);
-  const macros=tdee?calcMacros(tdee,pp.goal):null;
+  const macros=tdee?calcMacros(tdee,pp.goal,Number(pp.weight)):null;
 
   // Firestore usage bar (Spark: 1GB ~ roughly 1M small docs, show doc count)
   const usagePct=Math.min((usage.totalDocs/500)*100,100); // 500 docs = generous estimate for free
