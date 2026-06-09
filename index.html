@@ -713,7 +713,7 @@ function renderLive(){
       const restLabel=isOT?"⚠️ Tempo extra — premi quando sei pronto!":"⏱ Recupero in corso";
       const btnLabel=isOT?"✅ Vai alla prossima serie":"Salta recupero ⏭";
       const restInputHtml=isOT?"":'<div class="rest-controls"><div class="rest-edit"><label>Modifica recupero (s)</label><input type="number" value="'+rest+'" min="0" oninput="chgRest(this.value)"></div></div>';
-      actionH=liveState.phase==="rest"
+      const actionH=liveState.phase==="rest"
     ?`<div class="rest-card" style="background:${bgColor};border:1px solid ${bdColor}">
         <div class="rest-label" style="color:${fgColor}">${restLabel}</div>
         <div class="rest-timer" id="rtimer" style="color:${fgColor}">${timerTxt}</div>
