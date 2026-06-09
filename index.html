@@ -1337,7 +1337,15 @@ async function renderHistoryTab(){
     // sort by date desc
     sessions.sort((a,b)=>new Date(b.date)-new Date(a.date));
 
-    let h=`<div class="section-header"><h2 class="section-title">Storico allenamenti</h2></div>`;
+    // Toggle between sessions and charts
+    const showCharts=window._historyView==="charts";
+    let h=`<div class="section-header">
+      <h2 class="section-title">${showCharts?"📈 Progressione":"📋 Storico"}</h2>
+      <div style="display:flex;gap:8px">
+        <button onclick="switchHistoryView('sessions')" style="padding:6px 12px;border-radius:8px;border:none;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;background:${!showCharts?"var(--accent)":"var(--sub)"};color:${!showCharts?"#0a0a14":"var(--muted)"}">📋</button>
+        <button onclick="switchHistoryView('charts')" style="padding:6px 12px;border-radius:8px;border:none;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;background:${showCharts?"var(--accent)":"var(--sub)"};color:${showCharts?"#0a0a14":"var(--muted)"}">📈</button>
+      </div>
+    </div>`;
     if(!sessions.length){
       h+=`<p class="empty">Nessun allenamento completato ancora. Dai il massimo! 💪</p>`;
     } else {
@@ -1373,12 +1381,136 @@ async function renderHistoryTab(){
       });
     }
     el.innerHTML=h;
+    // If charts view, append charts after sessions
+    if(showCharts){
+      el.innerHTML=h;
+      await renderProgressTab();
+      return;
+    }
+
   }catch(e){
     el.innerHTML=`<p class="empty">Errore nel caricamento. Riprova.</p>`;
     console.error(e);
   }
 }
 window.renderHistoryTab=renderHistoryTab;
+
+function switchHistoryView(view){
+  window._historyView=view;
+  renderHistoryTab();
+}
+window.switchHistoryView=switchHistoryView;
+
+// ─── PROGRESS CHARTS ─────────────────────────────────────────────────────────
+async function renderProgressTab(){
+  const el=document.getElementById("tab-history");
+  // Get all sessions
+  const q=query(collection(db,"sessions"),where("uid","==",CU.uid));
+  const snap=await getDocs(q);
+  const sessions=snap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  if(!sessions.length){
+    el.innerHTML+=`<p class="empty" style="margin-top:20px">Completa almeno un allenamento per vedere la progressione dei pesi.</p>`;
+    return;
+  }
+
+  // Build exercise→weights map
+  const exMap={};
+  sessions.forEach(s=>{
+    const dateStr=new Date(s.date).toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit"});
+    (s.exercises||[]).forEach(ex=>{
+      if(!ex.weight||ex.weight==="") return;
+      const w=Number(ex.weight);
+      if(!w) return;
+      if(!exMap[ex.name]) exMap[ex.name]=[];
+      exMap[ex.name].push({date:dateStr,weight:w,fullDate:s.date});
+    });
+  });
+
+  const exNames=Object.keys(exMap).filter(n=>exMap[n].length>=1);
+  if(!exNames.length){
+    el.innerHTML+=`<div class="card" style="text-align:center;padding:24px;margin-top:12px"><p style="color:#555">Nessun peso registrato negli allenamenti.</p><p style="color:#555;font-size:12px;margin-top:6px">Inserisci i kg durante il live per vedere la progressione.</p></div>`;
+    return;
+  }
+
+  let chartsHtml=`<div style="margin-top:20px"><h3 style="color:var(--accent);font-size:16px;font-weight:800;margin-bottom:14px">📈 Progressione pesi</h3>`;
+
+  exNames.forEach(name=>{
+    const pts=exMap[name];
+    if(pts.length<1) return;
+    const weights=pts.map(p=>p.weight);
+    const minW=Math.min(...weights);
+    const maxW=Math.max(...weights);
+    const range=maxW-minW||1;
+    const W=300, H=80, padL=32, padB=20, padT=10, padR=10;
+    const chartW=W-padL-padR, chartH=H-padB-padT;
+    const n=pts.length;
+
+    // SVG points
+    const svgPts=pts.map((p,i)=>{
+      const x=padL+(n===1?chartW/2:i/(n-1)*chartW);
+      const y=padT+chartH-(p.weight-minW)/range*chartH;
+      return {x,y,w:p.weight,date:p.date};
+    });
+
+    // Line path
+    const linePath=svgPts.map((p,i)=>(i===0?`M${p.x},${p.y}`:`L${p.x},${p.y}`)).join(" ");
+    // Fill path
+    const fillPath=linePath+` L${svgPts[svgPts.length-1].x},${padT+chartH} L${svgPts[0].x},${padT+chartH} Z`;
+
+    // Y axis labels
+    const yLabels=[minW, Math.round((minW+maxW)/2), maxW];
+
+    // Trend
+    const first=weights[0], last=weights[weights.length-1];
+    const diff=last-first;
+    const trendColor=diff>0?"var(--green)":diff<0?"var(--red)":"var(--muted)";
+    const trendIcon=diff>0?"↑":diff<0?"↓":"→";
+    const trendStr=diff!==0?(diff>0?"+":"")+diff.toFixed(1)+"kg":"stabile";
+
+    chartsHtml+=`
+    <div class="card" style="margin-bottom:12px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-weight:700;font-size:14px;color:#fff">${esc(name)}</div>
+          <div style="font-size:12px;color:var(--muted)">${n} sessioni · Max: ${maxW}kg</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:18px;font-weight:900;color:${trendColor}">${trendIcon} ${trendStr}</div>
+          <div style="font-size:11px;color:var(--muted)">${pts[0].date} → ${pts[pts.length-1].date}</div>
+        </div>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;overflow:visible">
+        <!-- Grid lines -->
+        ${[0,0.5,1].map(t=>{
+          const y=padT+chartH-t*chartH;
+          return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#2a2a3e" stroke-width="1"/>`;
+        }).join("")}
+        <!-- Y labels -->
+        ${yLabels.map((v,i)=>{
+          const y=padT+chartH-[0,0.5,1][i]*chartH;
+          return `<text x="${padL-4}" y="${y+4}" text-anchor="end" fill="#555" font-size="9">${v}</text>`;
+        }).join("")}
+        <!-- Fill area -->
+        <path d="${fillPath}" fill="rgba(232,255,71,0.06)"/>
+        <!-- Line -->
+        <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- Points -->
+        ${svgPts.map(p=>`
+          <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--accent)" stroke="var(--bg)" stroke-width="2"/>
+        `).join("")}
+        <!-- X labels (date) - show max 4 -->
+        ${svgPts.filter((_,i)=>n<=4||i===0||i===n-1||i===Math.floor(n/2)).map(p=>`
+          <text x="${p.x}" y="${H-2}" text-anchor="middle" fill="#555" font-size="8">${p.date}</text>
+        `).join("")}
+      </svg>
+    </div>`;
+  });
+
+  chartsHtml+="</div>";
+  el.innerHTML+=chartsHtml;
+}
 
 async function deleteSession(id){
   if(!confirm("Eliminare questo allenamento dallo storico?"))return;
