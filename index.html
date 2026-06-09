@@ -1523,8 +1523,15 @@ async function renderProgressTab(){
   const sessions=snap.docs.map(d=>({id:d.id,...d.data()}))
     .sort((a,b)=>new Date(a.date)-new Date(b.date));
 
+  // Body weight chart - always show if data exists
+  const bwE=await loadBodyWeights();
+  if(bwE.length>=2){
+    const bwHtml=await buildBWChartHtml(bwE);
+    el.innerHTML+=bwHtml;
+  }
+
   if(!sessions.length){
-    el.innerHTML+=`<p class="empty" style="margin-top:20px">Completa almeno un allenamento per vedere la progressione dei pesi.</p>`;
+    if(bwE.length<2) el.innerHTML+=`<p class="empty" style="margin-top:20px">Completa almeno un allenamento e registra il peso corporeo nel profilo per vedere la progressione.</p>`;
     return;
   }
 
@@ -1621,12 +1628,6 @@ async function renderProgressTab(){
     </div>`;
   });
 
-  // Also add body weight chart at top
-  const bwE=await loadBodyWeights();
-  if(bwE.length>=2){
-    const bwHtml=await buildBWChartHtml(bwE);
-    el.innerHTML+=bwHtml;
-  }
   chartsHtml+="</div>";
   el.innerHTML+=chartsHtml;
 }
