@@ -596,17 +596,19 @@ function renderWktEditor(){
   const el=document.getElementById("tab-workouts");
   const exH=(editingWkt.exercises||[]).map((ex,i)=>{
     const dbEx=EXERCISE_DB.find(e=>e.name===ex.name);
+    const exImgHtml=dbEx
+      ?('<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;background:var(--bg);border-radius:10px;padding:8px;cursor:pointer" onclick="showExDetail(\''+dbEx.id+'\')">'+
+        '<img src="'+dbEx.img0+'" style="width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'">'+
+        '<div><div style="font-size:12px;color:var(--accent);font-weight:700">'+dbEx.group+' · '+dbEx.equipment+'</div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px">Tocca per le istruzioni</div></div></div>')
+      :"";
     return `
     <div class="ex-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span style="color:var(--accent);font-weight:700;font-size:13px">Esercizio ${i+1}</span>
         <button class="btn-icon danger" onclick="rmEx(${i})">🗑️</button>
       </div>
-      ${dbEx?`<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;background:var(--bg);border-radius:10px;padding:8px;cursor:pointer" onclick="showExDetail('${dbEx.id}')">
-        <img src="${dbEx.img0}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">
-        <div><div style="font-size:12px;color:var(--accent);font-weight:700">${dbEx.group} · ${dbEx.equipment}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">Tocca per le istruzioni</div></div>
-      </div>`:""}
+      ${exImgHtml}
       <input type="text" placeholder="Nome esercizio" value="${esc(ex.name)}" oninput="updEx(${i},'name',this.value)">
       <div class="ex-grid">
         <div><label class="form-label">Serie</label><input type="number" value="${ex.sets}" min="1" oninput="updEx(${i},'sets',this.value)"></div>
@@ -614,7 +616,7 @@ function renderWktEditor(){
         <div><label class="form-label">Kg</label><input type="number" value="${ex.weight||""}" placeholder="—" oninput="updEx(${i},'weight',this.value)"></div>
         <div><label class="form-label">Rec (s)</label><input type="number" value="${ex.rest}" min="0" oninput="updEx(${i},'rest',this.value)"></div>
       </div>
-    </div>`).join("");
+    </div>`}).join("");
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <button class="btn-back" onclick="renderWorkoutsTab()">← Indietro</button>
@@ -719,6 +721,10 @@ function renderLive(){
       const restLabel=isOT?"⚠️ Tempo extra — premi quando sei pronto!":"⏱ Recupero in corso";
       const btnLabel=isOT?"✅ Vai alla prossima serie":"Salta recupero ⏭";
       const restInputHtml=isOT?"":'<div class="rest-controls"><div class="rest-edit"><label>Modifica recupero (s)</label><input type="number" value="'+rest+'" min="0" oninput="chgRest(this.value)"></div></div>';
+      const _dbExLive=EXERCISE_DB.find(e=>e.name===ex.name);
+      const liveImgHtml=_dbExLive
+        ?('<img src="'+_dbExLive.img0+'" onclick="showExDetail(\''+_dbExLive.id+'\')" style="width:80px;height:80px;border-radius:12px;object-fit:cover;margin-bottom:10px;cursor:pointer" onerror="this.style.display=\'none\'">')
+        :"";
       const actionH=liveState.phase==="rest"
     ?`<div class="rest-card" style="background:${bgColor};border:1px solid ${bdColor}">
         <div class="rest-label" style="color:${fgColor}">${restLabel}</div>
@@ -748,7 +754,7 @@ function renderLive(){
     <div class="live-content">
       <div class="live-ex-card">
         <div class="live-ex-label">Esercizio corrente</div>
-        ${(()=>{const dbE=EXERCISE_DB.find(e=>e.name===ex.name);return dbE?`<img src="${dbE.img0}" onclick="showExDetail('${dbE.id}')" style="width:80px;height:80px;border-radius:12px;object-fit:cover;margin-bottom:10px;cursor:pointer" onerror="this.style.display='none'">`:""})()}
+        ${liveImgHtml}
         <div class="live-ex-name">${esc(ex.name)||"—"}</div>
         <div class="live-stats">
           <div><div class="live-stat-label">Serie</div><div class="live-stat-val">${liveState.setIdx+1} / ${tot}</div></div>
@@ -1625,7 +1631,7 @@ function updateRecipeTotals(){
           <div style="font-weight:800;color:#fff">${v}${u}</div>
         </div>`).join("")}
     </div>
-    ${portions>1?`<div style="font-size:12px;color:var(--muted);text-align:center">Per porzione: ${Math.round(tot.kcal/portions)} kcal · P ${Math.round(tot.protein/portions*10)/10}g · C ${Math.round(tot.carbs/portions*10)/10}g · G ${Math.round(tot.fat/portions*10)/10}g</div>`:""}`;
+    ${portions>1?('<div style="font-size:12px;color:var(--muted);text-align:center">Per porzione: '+Math.round(tot.kcal/portions)+' kcal · P '+Math.round(tot.protein/portions*10)/10+'g · C '+Math.round(tot.carbs/portions*10)/10+'g · G '+Math.round(tot.fat/portions*10)/10+'g</div>'):""}`;
   window._currentRecipeTotals=tot;
 }
 window.updateRecipeTotals=updateRecipeTotals;
