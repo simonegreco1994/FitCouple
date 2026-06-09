@@ -2266,8 +2266,10 @@ function renderRecipesList(){
 }
 window.renderRecipesList=renderRecipesList;
 
-function openNewRecipe(){
+async function openNewRecipe(){
   const el=document.getElementById("tab-nutrition");
+  // Ensure custom foods are loaded
+  await loadCustomFoods();
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <button class="btn-back" onclick="openFoodAdd()">← Indietro</button>
@@ -2331,7 +2333,7 @@ function calcIngLine(ing){
     const f=FOOD_DB[ing.foodIdx]; if(!f) return "";
     const r=ing.qty/100;
     return Math.round(f.kcal*r)+" kcal · P "+Math.round(f.protein*r*10)/10+"g · C "+Math.round(f.carbs*r*10)/10+"g · G "+Math.round(f.fat*r*10)/10+"g";
-  } else if(ing.manualKcal){
+  } else if(ing.manualName&&(ing.manualKcal||ing.manualKcal===0)){
     const r=ing.qty/100;
     return Math.round((ing.manualKcal||0)*r)+" kcal · P "+Math.round((ing.manualProtein||0)*r*10)/10+"g · C "+Math.round((ing.manualCarbs||0)*r*10)/10+"g · G "+Math.round((ing.manualFat||0)*r*10)/10+"g";
   }
@@ -2357,9 +2359,11 @@ function searchRecipeFood(i,q){
 window.searchRecipeFood=searchRecipeFood;
 
 function showRecipeFoodResults(i){
-  // Find the input for this ingredient
   const inp=document.getElementById("rfood-inp-"+i);
   const q=inp?inp.value:"";
+  // Always show results on focus, even if empty
+  const res=document.getElementById("rfood-res-"+i);
+  if(res) res.style.display="block";
   searchRecipeFood(i,q);
 }
 window.showRecipeFoodResults=showRecipeFoodResults;
@@ -2448,7 +2452,7 @@ function rmRecipeIng(i){window._recipeIngredients.splice(i,1);renderRecipeIngred
 window.rmRecipeIng=rmRecipeIng;
 
 function updateRecipeTotals(){
-  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0||i.manualName);
+  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0||(i.manualName&&i.manualName.trim()));
   if(!ings.length){document.getElementById("rec-totals").style.display="none";return}
   const tot=ings.reduce((a,ing)=>{
     const r=ing.qty/100;
@@ -2456,7 +2460,12 @@ function updateRecipeTotals(){
       const f=FOOD_DB[ing.foodIdx];
       return {kcal:a.kcal+f.kcal*r,protein:a.protein+f.protein*r,carbs:a.carbs+f.carbs*r,fat:a.fat+f.fat*r};
     } else if(ing.manualName){
-      return {kcal:a.kcal+(ing.manualKcal||0)*r,protein:a.protein+(ing.manualProtein||0)*r,carbs:a.carbs+(ing.manualCarbs||0)*r,fat:a.fat+(ing.manualFat||0)*r};
+      // Could be a custom food with values stored directly
+      const kcal=ing.manualKcal||0;
+      const pro=ing.manualProtein||0;
+      const car=ing.manualCarbs||0;
+      const fat=ing.manualFat||0;
+      return {kcal:a.kcal+kcal*r,protein:a.protein+pro*r,carbs:a.carbs+car*r,fat:a.fat+fat*r};
     }
     return a;
   },{kcal:0,protein:0,carbs:0,fat:0});
@@ -2478,7 +2487,7 @@ window.updateRecipeTotals=updateRecipeTotals;
 async function saveRecipe(){
   const name=document.getElementById("rec-name").value.trim();
   if(!name){alert("Dai un nome alla ricetta!");return}
-  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0||i.manualName);
+  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0||(i.manualName&&i.manualName.trim()));
   if(!ings.length){alert("Aggiungi almeno un ingrediente!");return}
   const portions=Number(document.getElementById("rec-portions").value)||1;
   const tot=window._currentRecipeTotals||{kcal:0,protein:0,carbs:0,fat:0};
