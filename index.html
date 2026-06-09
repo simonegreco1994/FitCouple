@@ -704,21 +704,22 @@ function renderLive(){
   const tot=Number(ex.sets);
   const rest=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
   const prog=((liveState.exIdx+liveState.setIdx/tot)/w.exercises.length)*100;
-  const const isOT=liveState.overtime||false;
+  const isOT=liveState.overtime||false;
+      const bgColor=isOT?"#2a0000":"#0d1f0d";
+      const bdColor=isOT?"#6b0000":"#1a3a1a";
+      const fgColor=isOT?"var(--red)":"var(--green)";
+      const btnBg=isOT?"#6b0000":"#1a3a1a";
+      const timerTxt=isOT?("-"+fmt(Math.abs(liveState.timerLeft))):fmt(liveState.timerLeft);
+      const restLabel=isOT?"⚠️ Tempo extra — premi quando sei pronto!":"⏱ Recupero in corso";
+      const btnLabel=isOT?"✅ Vai alla prossima serie":"Salta recupero ⏭";
+      const restInputHtml=isOT?"":'<div class="rest-controls"><div class="rest-edit"><label>Modifica recupero (s)</label><input type="number" value="'+rest+'" min="0" oninput="chgRest(this.value)"></div></div>';
       actionH=liveState.phase==="rest"
-    ?`<div class="rest-card" style="background:${isOT?"#2a0000":"#0d1f0d"};border:1px solid ${isOT?"#6b0000":"#1a3a1a"}">
-        <div class="rest-label" style="color:${isOT?"var(--red)":"var(--green)"}">
-          ${isOT?"⚠️ Tempo extra — premi quando sei pronto!":"⏱ Recupero in corso"}
-        </div>
-        <div class="rest-timer" id="rtimer" style="color:${isOT?"var(--red)":"var(--green)"}">
-          ${isOT?"-"+fmt(Math.abs(liveState.timerLeft)):fmt(liveState.timerLeft)}
-        </div>
-        ${!isOT?`<div class="rest-controls"><div class="rest-edit">
-            <label>Modifica recupero (s)</label>
-            <input type="number" value="${rest}" min="0" oninput="chgRest(this.value)">
-          </div></div>`:""}
-        <button onclick="skipRest()" style="margin-top:10px;width:100%;padding:14px;background:${isOT?"#6b0000":"#1a3a1a"};color:${isOT?"var(--red)":"var(--green)"};border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
-          ${isOT?"✅ Vai alla prossima serie":"Salta recupero ⏭"}
+    ?`<div class="rest-card" style="background:${bgColor};border:1px solid ${bdColor}">
+        <div class="rest-label" style="color:${fgColor}">${restLabel}</div>
+        <div class="rest-timer" id="rtimer" style="color:${fgColor}">${timerTxt}</div>
+        ${restInputHtml}
+        <button onclick="skipRest()" style="margin-top:10px;width:100%;padding:14px;background:${btnBg};color:${fgColor};border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+          ${btnLabel}
         </button>
       </div>`
     :`<button class="btn-complete" onclick="completeSet()">✅ Serie completata</button>`;
