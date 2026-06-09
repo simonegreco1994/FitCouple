@@ -1705,6 +1705,8 @@ async function renderProfileTab(){
   const usage=await getFirestoreUsage();
   // Load body weight history
   const bwEntries=await loadBodyWeights();
+  const bwChartHtml=await buildBWChartHtml(bwEntries);
+  const bwRecentHtml=await renderBWRecentHtml(bwEntries);
   const p=profile||{};
   const pp=p.physique||{weight:"",height:"",age:"",gender:"M",activity:"moderate",goal:"maintain"};
   const bmi=calcBMI(Number(pp.weight),Number(pp.height));
@@ -1827,7 +1829,7 @@ async function renderProfileTab(){
           + Registra
         </button>
       </div>
-      <div id="bw-recent">${await renderBWRecentHtml(bwEntries)}</div>
+      <div id="bw-recent">${bwRecentHtml}</div>
     </div>
     ${bwChartHtml}
 
