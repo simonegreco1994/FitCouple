@@ -1346,6 +1346,13 @@ async function renderHistoryTab(){
         <button onclick="switchHistoryView('charts')" style="padding:6px 12px;border-radius:8px;border:none;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;background:${showCharts?"var(--accent)":"var(--sub)"};color:${showCharts?"#0a0a14":"var(--muted)"}">📈</button>
       </div>
     </div>`;
+    // If charts view, skip sessions list
+    if(showCharts){
+      el.innerHTML=h;
+      await renderProgressTab();
+      return;
+    }
+
     if(!sessions.length){
       h+=`<p class="empty">Nessun allenamento completato ancora. Dai il massimo! 💪</p>`;
     } else {
@@ -1381,12 +1388,7 @@ async function renderHistoryTab(){
       });
     }
     el.innerHTML=h;
-    // If charts view, append charts after sessions
-    if(showCharts){
-      el.innerHTML=h;
-      await renderProgressTab();
-      return;
-    }
+
 
   }catch(e){
     el.innerHTML=`<p class="empty">Errore nel caricamento. Riprova.</p>`;
