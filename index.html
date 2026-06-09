@@ -1066,6 +1066,13 @@ window.closeFoodQtyModal=closeFoodQtyModal;
 function closeFoodQtyModalForce(){ document.getElementById("food-qty-modal").style.display="none"; }
 window.closeFoodQtyModalForce=closeFoodQtyModalForce;
 
+// Close recipe food dropdowns when clicking outside
+document.addEventListener("click", function(e){
+  if(!e.target.closest("#rec-ingredients")) {
+    document.querySelectorAll("[id^='rfood-res-']").forEach(el=>el.style.display="none");
+  }
+});
+
 function updateFoodQtyModal(){
   if(!selectedFood) return;
   const qty=Number(document.getElementById("fqm-qty").value)||100;
@@ -2084,48 +2091,147 @@ window.addRecipeIngredient=addRecipeIngredient;
 function renderRecipeIngredients(){
   const el=document.getElementById("rec-ingredients");
   if(!el) return;
-  el.innerHTML=window._recipeIngredients.map((ing,i)=>`
-    <div class="card" style="margin-bottom:8px">
-      <div style="display:flex;gap:8px;align-items:flex-end">
-        <div style="flex:1">
-          <label class="form-label">Alimento</label>
-          <select onchange="setRecipeFood(${i},this.value)"
-            style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px;color:#fff;font-size:13px;font-family:inherit;outline:none">
-            <option value="-1">Seleziona…</option>
-            ${FOOD_DB.map((f,fi)=>`<option value="${fi}" ${ing.foodIdx===fi?"selected":""}>${f.name}</option>`).join("")}
-          </select>
-        </div>
-        <div style="width:80px">
-          <label class="form-label">g/ml</label>
-          <input type="number" value="${ing.qty}" min="1" oninput="setRecipeQty(${i},this.value)"
-            style="border-radius:10px;padding:10px;font-size:13px">
-        </div>
+  el.innerHTML=window._recipeIngredients.map((ing,i)=>{
+    const dbFood=ing.foodIdx>=0?FOOD_DB[ing.foodIdx]:null;
+    const foodName=dbFood?dbFood.name:(ing.manualName||"");
+    const ingLine=calcIngLine(ing);
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="color:var(--accent);font-size:12px;font-weight:700">Ingrediente ${i+1}</span>
         <button class="btn-icon danger" onclick="rmRecipeIng(${i})">🗑️</button>
       </div>
-      ${ing.foodIdx>=0?`<div style="color:var(--muted);font-size:11px;margin-top:6px">${calcIngLine(ing)}</div>`:""}
-    </div>`).join("");
+      <div style="position:relative;margin-bottom:8px">
+        <input type="text" placeholder="Cerca o scrivi alimento…" value="${esc(foodName)}"
+          oninput="searchRecipeFood(${i},this.value)" onfocus="showRecipeFoodResults(${i})"
+          style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;font-family:inherit;outline:none">
+        <div id="rfood-res-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:10px;z-index:50;max-height:180px;overflow-y:auto;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label class="form-label">g / ml</label>
+          <input type="number" value="${ing.qty}" min="1" oninput="setRecipeQty(${i},this.value)"
+            style="border-radius:10px;padding:10px;font-size:13px"></div>
+        ${ingLine?'<div style="background:var(--sub);border-radius:10px;padding:8px;font-size:11px;color:var(--muted);flex:1;display:flex;align-items:center">'+ingLine+'</div>':""}
+      </div>
+    </div>`}).join("");
   updateRecipeTotals();
 }
 
 function calcIngLine(ing){
-  const f=FOOD_DB[ing.foodIdx]; if(!f) return "";
-  const r=ing.qty/100;
-  return `${Math.round(f.kcal*r)} kcal · P ${Math.round(f.protein*r*10)/10}g · C ${Math.round(f.carbs*r*10)/10}g · G ${Math.round(f.fat*r*10)/10}g`;
+  if(ing.foodIdx>=0){
+    const f=FOOD_DB[ing.foodIdx]; if(!f) return "";
+    const r=ing.qty/100;
+    return Math.round(f.kcal*r)+" kcal · P "+Math.round(f.protein*r*10)/10+"g · C "+Math.round(f.carbs*r*10)/10+"g · G "+Math.round(f.fat*r*10)/10+"g";
+  } else if(ing.manualKcal){
+    const r=ing.qty/100;
+    return Math.round((ing.manualKcal||0)*r)+" kcal · P "+Math.round((ing.manualProtein||0)*r*10)/10+"g · C "+Math.round((ing.manualCarbs||0)*r*10)/10+"g · G "+Math.round((ing.manualFat||0)*r*10)/10+"g";
+  }
+  return "";
 }
 
 function setRecipeFood(i,val){window._recipeIngredients[i].foodIdx=Number(val);renderRecipeIngredients()}
 window.setRecipeFood=setRecipeFood;
+
+function searchRecipeFood(i,q){
+  const res=document.getElementById("rfood-res-"+i);
+  if(!res) return;
+  if(!q.trim()){
+    // Show all if empty
+    const all=FOOD_DB.slice(0,10);
+    renderRFoodResults(i,all,res);
+    return;
+  }
+  const matches=FOOD_DB.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
+  // If no exact match, offer manual entry
+  renderRFoodResults(i,matches,res,q);
+}
+window.searchRecipeFood=searchRecipeFood;
+
+function showRecipeFoodResults(i){
+  const inp=document.querySelector('#rec-ingredients .card:nth-child('+(i+1)+') input[type="text"]');
+  const q=inp?inp.value:"";
+  searchRecipeFood(i,q);
+}
+window.showRecipeFoodResults=showRecipeFoodResults;
+
+function renderRFoodResults(i,matches,res,q){
+  res.style.display="block";
+  let html=matches.map((f,fi)=>{
+    const idx=FOOD_DB.indexOf(f);
+    return '<div onclick="selectRFood('+i+','+idx+')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;color:#fff" onmouseover="this.style.background='var(--sub)'" onmouseout="this.style.background=''">'+
+      '<div style="font-weight:600">'+esc(f.name)+'</div>'+
+      '<div style="font-size:11px;color:var(--muted)">'+f.kcal+' kcal · P '+f.protein+'g · C '+f.carbs+'g · G '+f.fat+'g per '+f.unit+'</div>'+
+    '</div>';
+  }).join("");
+  if(q&&!matches.find(f=>f.name.toLowerCase()===q.toLowerCase())){
+    html+=`<div onclick="setRFoodManual(${i},'${q.replace(/'/g,"\'")}',this)" style="padding:10px 14px;cursor:pointer;font-size:13px;color:var(--accent);border-top:1px solid var(--border)">
+      ✏️ Inserisci "${q}" manualmente
+    </div>`;
+  }
+  if(!html) html='<div style="padding:10px 14px;color:var(--muted);font-size:13px">Nessun risultato</div>';
+  res.innerHTML=html;
+}
+
+function selectRFood(i,foodIdx){
+  window._recipeIngredients[i].foodIdx=foodIdx;
+  window._recipeIngredients[i].manualName=null;
+  window._recipeIngredients[i].manualKcal=null;
+  // Hide results
+  const res=document.getElementById("rfood-res-"+i);
+  if(res) res.style.display="none";
+  renderRecipeIngredients();
+}
+window.selectRFood=selectRFood;
+
+function setRFoodManual(i,name,el){
+  // Show manual entry fields
+  const card=el.closest(".card");
+  if(!card) return;
+  const res=document.getElementById("rfood-res-"+i);
+  if(res) res.style.display="none";
+  window._recipeIngredients[i].foodIdx=-1;
+  window._recipeIngredients[i].manualName=name;
+  // Ask for kcal/macros inline
+  const extraId="rfood-manual-"+i;
+  let extra=document.getElementById(extraId);
+  if(!extra){
+    extra=document.createElement("div");
+    extra.id=extraId;
+    extra.style.cssText="margin-top:8px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px";
+    extra.innerHTML=
+      ['Kcal','P(g)','C(g)','G(g)'].map((l,j)=>
+        `<div><label class="form-label">${l}</label>
+         <input type="number" placeholder="0" oninput="setRFoodMacro(${i},${j},this.value)"
+           style="border-radius:8px;padding:8px;font-size:12px"></div>`
+      ).join("");
+    card.appendChild(extra);
+  }
+}
+window.setRFoodManual=setRFoodManual;
+
+function setRFoodMacro(i,j,val){
+  const ing=window._recipeIngredients[i];
+  const fields=["manualKcal","manualProtein","manualCarbs","manualFat"];
+  ing[fields[j]]=Number(val)||0;
+  updateRecipeTotals();
+}
+window.setRFoodMacro=setRFoodMacro;
 function setRecipeQty(i,val){window._recipeIngredients[i].qty=Number(val)||0;renderRecipeIngredients()}
 window.setRecipeQty=setRecipeQty;
 function rmRecipeIng(i){window._recipeIngredients.splice(i,1);renderRecipeIngredients()}
 window.rmRecipeIng=rmRecipeIng;
 
 function updateRecipeTotals(){
-  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0);
+  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0||i.manualName);
   if(!ings.length){document.getElementById("rec-totals").style.display="none";return}
   const tot=ings.reduce((a,ing)=>{
-    const f=FOOD_DB[ing.foodIdx],r=ing.qty/100;
-    return {kcal:a.kcal+f.kcal*r,protein:a.protein+f.protein*r,carbs:a.carbs+f.carbs*r,fat:a.fat+f.fat*r};
+    const r=ing.qty/100;
+    if(ing.foodIdx>=0){
+      const f=FOOD_DB[ing.foodIdx];
+      return {kcal:a.kcal+f.kcal*r,protein:a.protein+f.protein*r,carbs:a.carbs+f.carbs*r,fat:a.fat+f.fat*r};
+    } else if(ing.manualName){
+      return {kcal:a.kcal+(ing.manualKcal||0)*r,protein:a.protein+(ing.manualProtein||0)*r,carbs:a.carbs+(ing.manualCarbs||0)*r,fat:a.fat+(ing.manualFat||0)*r};
+    }
+    return a;
   },{kcal:0,protein:0,carbs:0,fat:0});
   const portions=Number(document.getElementById("rec-portions")?.value)||1;
   document.getElementById("rec-totals").style.display="block";
@@ -2145,7 +2251,7 @@ window.updateRecipeTotals=updateRecipeTotals;
 async function saveRecipe(){
   const name=document.getElementById("rec-name").value.trim();
   if(!name){alert("Dai un nome alla ricetta!");return}
-  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0);
+  const ings=window._recipeIngredients.filter(i=>i.foodIdx>=0||i.manualName);
   if(!ings.length){alert("Aggiungi almeno un ingrediente!");return}
   const portions=Number(document.getElementById("rec-portions").value)||1;
   const tot=window._currentRecipeTotals||{kcal:0,protein:0,carbs:0,fat:0};
@@ -2153,7 +2259,7 @@ async function saveRecipe(){
     name, portions,
     createdBy:profile.name||CU.email,
     createdAt:new Date().toISOString(),
-    ingredients:ings.map(i=>({foodName:FOOD_DB[i.foodIdx].name,qty:i.qty})),
+    ingredients:ings.map(i=>i.foodIdx>=0?{foodName:FOOD_DB[i.foodIdx].name,qty:i.qty}:{foodName:i.manualName,qty:i.qty,manual:true,kcal:i.manualKcal,protein:i.manualProtein,carbs:i.manualCarbs,fat:i.manualFat}),
     totals:{kcal:Math.round(tot.kcal),protein:Math.round(tot.protein*10)/10,carbs:Math.round(tot.carbs*10)/10,fat:Math.round(tot.fat*10)/10}
   };
   await addDoc(collection(db,"recipes"),recipe);
