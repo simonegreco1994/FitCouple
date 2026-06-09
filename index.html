@@ -2157,7 +2157,7 @@ function renderRFoodResults(i,matches,res,q){
   res.style.display="block";
   let html=matches.map((f,fi)=>{
     const idx=FOOD_DB.indexOf(f);
-    return '<div onclick="selectRFood('+i+','+idx+')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;color:#fff" onmouseover="this.style.background='var(--sub)'" onmouseout="this.style.background=''">'+
+    return '<div onclick="selectRFood('+i+','+idx+')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;color:#fff">'+
       '<div style="font-weight:600">'+esc(f.name)+'</div>'+
       '<div style="font-size:11px;color:var(--muted)">'+f.kcal+' kcal · P '+f.protein+'g · C '+f.carbs+'g · G '+f.fat+'g per '+f.unit+'</div>'+
     '</div>';
