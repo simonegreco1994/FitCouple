@@ -1305,6 +1305,7 @@ async function renderProgramTab(){
   const el=document.getElementById("tab-program");
   el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
   const week=await loadProgram();
+  window._currentWeek=[...week];
   const todayIdx=getTodayDayIdx();
   const wkts=workouts;
 
@@ -1344,10 +1345,10 @@ async function renderProgramTab(){
             ${wkt?`<div style="font-size:11px;color:var(--muted)">${(wkt.exercises||[]).length} esercizi</div>`:""}
           </div>
         </div>
-        <select onchange="setProgramDay(${i},this.value,'${JSON.stringify(week).replace(/'/g,"\'")}')"
+        <select onchange="setProgramDay(${i},this.value)"
           style="background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:#fff;font-size:12px;font-family:inherit;outline:none;max-width:130px">
           <option value="">Riposo</option>
-          ${wkts.map(w=>`<option value="${w.id}" ${week[i]===w.id?"selected":""}>${esc(w.name)}</option>`).join("")}
+          ${wkts.map(w=>'<option value="'+w.id+'" '+(week[i]===w.id?'selected':'')+'>'+esc(w.name)+'</option>').join('')}
         </select>
       </div>
     </div>`;
@@ -1361,10 +1362,10 @@ async function renderProgramTab(){
 }
 window.renderProgramTab=renderProgramTab;
 
-async function setProgramDay(dayIdx,wktId,weekJson){
-  let week;
-  try{ week=JSON.parse(weekJson); }catch{ week=[null,null,null,null,null,null,null]; }
+async function setProgramDay(dayIdx,wktId){
+  const week=window._currentWeek||[null,null,null,null,null,null,null];
   week[dayIdx]=wktId||null;
+  window._currentWeek=week;
   await saveProgram(week);
   renderProgramTab();
 }
