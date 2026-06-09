@@ -704,17 +704,22 @@ function renderLive(){
   const tot=Number(ex.sets);
   const rest=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
   const prog=((liveState.exIdx+liveState.setIdx/tot)/w.exercises.length)*100;
-  const actionH=liveState.phase==="rest"
-    ?`<div class="rest-card">
-        <div class="rest-label">⏱ Recupero in corso</div>
-        <div class="rest-timer" id="rtimer">${fmt(liveState.timerLeft)}</div>
-        <div class="rest-controls">
-          <div class="rest-edit">
+  const const isOT=liveState.overtime||false;
+      actionH=liveState.phase==="rest"
+    ?`<div class="rest-card" style="background:${isOT?"#2a0000":"#0d1f0d"};border:1px solid ${isOT?"#6b0000":"#1a3a1a"}">
+        <div class="rest-label" style="color:${isOT?"var(--red)":"var(--green)"}">
+          ${isOT?"⚠️ Tempo extra — premi quando sei pronto!":"⏱ Recupero in corso"}
+        </div>
+        <div class="rest-timer" id="rtimer" style="color:${isOT?"var(--red)":"var(--green)"}">
+          ${isOT?"-"+fmt(Math.abs(liveState.timerLeft)):fmt(liveState.timerLeft)}
+        </div>
+        ${!isOT?`<div class="rest-controls"><div class="rest-edit">
             <label>Modifica recupero (s)</label>
             <input type="number" value="${rest}" min="0" oninput="chgRest(this.value)">
-          </div>
-        </div>
-        <button class="btn-skip" onclick="skipRest()">Salta recupero ⏭</button>
+          </div></div>`:""}
+        <button onclick="skipRest()" style="margin-top:10px;width:100%;padding:14px;background:${isOT?"#6b0000":"#1a3a1a"};color:${isOT?"var(--red)":"var(--green)"};border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
+          ${isOT?"✅ Vai alla prossima serie":"Salta recupero ⏭"}
+        </button>
       </div>`
     :`<button class="btn-complete" onclick="completeSet()">✅ Serie completata</button>`;
   const listH=w.exercises.map((e,i)=>{
@@ -786,14 +791,14 @@ function completeSet(){
   const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
   if(rs>0){
     liveState.phase="rest";liveState.timerLeft=rs;renderLive();
+    liveState.overtime=false;
     liveTimer=setInterval(()=>{
       liveState.timerLeft--;
+      if(liveState.timerLeft<0&&!liveState.overtime){
+        liveState.overtime=true;renderLive();return;
+      }
       const d=document.getElementById("rtimer");
-      if(d)d.textContent=fmt(liveState.timerLeft);
-      if(liveState.timerLeft<=0){clearInterval(liveTimer);liveState.phase="work";
-        // Vibrazione al termine del recupero
-        if(navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
-        renderLive()}
+      if(d)d.textContent=(liveState.overtime?"-":"")+fmt(Math.abs(liveState.timerLeft));
     },1000);
   }else{liveState.phase="work";renderLive()}
 }
@@ -803,16 +808,18 @@ function chgRest(v){
   clearInterval(liveTimer);const n=Number(v);
   liveState.customRest=n;liveState.timerLeft=n;
   const d=document.getElementById("rtimer");if(d)d.textContent=fmt(n);
+  liveState.overtime=false;
   liveTimer=setInterval(()=>{
     liveState.timerLeft--;
-    const dd=document.getElementById("rtimer");if(dd)dd.textContent=fmt(liveState.timerLeft);
-    if(liveState.timerLeft<=0){clearInterval(liveTimer);liveState.phase="work";
-      if(navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
-      renderLive()}
+    if(liveState.timerLeft<0&&!liveState.overtime){
+      liveState.overtime=true;renderLive();return;
+    }
+    const dd=document.getElementById("rtimer");
+    if(dd)dd.textContent=(liveState.overtime?"-":"")+fmt(Math.abs(liveState.timerLeft));
   },1000);
 }
 window.chgRest=chgRest;
-function skipRest(){clearInterval(liveTimer);liveState.phase="work";renderLive()}
+function skipRest(){clearInterval(liveTimer);liveState.phase="work";liveState.overtime=false;renderLive()}
 window.skipRest=skipRest;
 function endLive(){clearInterval(liveTimer);liveState=null;showScreen("main");showTab("workouts")}
 window.endLive=endLive;
