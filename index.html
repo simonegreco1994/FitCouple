@@ -1107,8 +1107,10 @@ window.saveGoals=saveGoals;
 async function loadBodyWeights(){
   try{
     const snap=await getDoc(doc(db,"bodyweight",CU.uid));
-    return snap.exists()?(snap.data().entries||[]):[];
-  }catch(e){ return []; }
+    const entries=snap.exists()?(snap.data().entries||[]):[];
+    console.log("BW entries loaded:", entries.length, entries);
+    return entries;
+  }catch(e){ console.error("loadBodyWeights error:", e); return []; }
 }
 
 async function saveBodyWeights(entries){
@@ -1525,9 +1527,15 @@ async function renderProgressTab(){
 
   // Body weight chart - always show if data exists
   const bwE=await loadBodyWeights();
+  console.log("BW entries in progress tab:", bwE.length);
   if(bwE.length>=2){
     const bwHtml=await buildBWChartHtml(bwE);
+    console.log("BW chart html length:", bwHtml.length);
     el.innerHTML+=bwHtml;
+  } else {
+    el.innerHTML+=`<div class="card" style="margin-bottom:12px;text-align:center;padding:16px">
+      <p style="color:var(--muted);font-size:13px">⚖️ Registra almeno 2 pesi nel tab Profilo per vedere il grafico.</p>
+    </div>`;
   }
 
   if(!sessions.length){
