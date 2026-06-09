@@ -938,6 +938,8 @@ function mbar(l,v,g,c){const p=Math.min((v/g)*100,100);return `<div class="macro
 async function openFoodAdd(){
   const el=document.getElementById("tab-nutrition");
   selectedFood=null;
+  // Load custom foods first
+  await loadCustomFoods();
   // Load shared recipes from Firestore
   let recipes=[];
   try{
@@ -947,7 +949,7 @@ async function openFoodAdd(){
   window._sharedRecipes=recipes;
 
   // Build category pills
-  const cats=["Tutti",...new Set(FOOD_DB.map(f=>f.cat||"Altro"))];
+  const cats=["Tutti",...new Set(getAllFoods().map(f=>f.cat||"Altro"))];
   const pillsHtml=cats.map(c=>`<button class="group-pill${c==="Tutti"?" active":""}" onclick="filterFoodCat('${c}',this)">${c}</button>`).join("");
 
   el.innerHTML=`
@@ -981,13 +983,12 @@ async function openFoodAdd(){
     </div>
 
     <div id="food-m" style="display:none">
-      <div class="form-group"><label class="form-label">Nome alimento</label><input type="text" id="m-name" placeholder="Es. Insalata mista"></div>
-      <div class="form-group"><label class="form-label">Kcal</label><input type="number" id="m-kcal" placeholder="0"></div>
-      <div class="form-group"><label class="form-label">Proteine (g)</label><input type="number" id="m-pro" placeholder="0"></div>
-      <div class="form-group"><label class="form-label">Carboidrati (g)</label><input type="number" id="m-car" placeholder="0"></div>
-      <div class="form-group"><label class="form-label">Grassi (g)</label><input type="number" id="m-fat" placeholder="0"></div>
-      <button class="btn-primary" onclick="addManual()">Aggiungi al diario</button>
+      <div id="food-db-content">
+        <p style="color:var(--muted);font-size:13px;text-align:center;margin:20px 0">Caricamento database…</p>
+      </div>
     </div>`;
+  // Load and render food database when switching to manual tab
+  loadCustomFoods().then(()=>renderFoodDB());
 
   // Show all foods immediately
   window._currentFoodCat="Tutti";
@@ -1003,6 +1004,7 @@ function switchFoodTab(t){
   document.getElementById("food-r").style.display=t==="recipes"?"block":"none";
   document.getElementById("food-m").style.display=t==="manual"?"block":"none";
   if(t==="recipes") renderRecipesList();
+  if(t==="manual") loadCustomFoods().then(()=>renderFoodDB());
 }
 window.switchFoodTab=switchFoodTab;
 
@@ -1029,7 +1031,8 @@ function filterFoodCat(cat,btn){
 window.filterFoodCat=filterFoodCat;
 
 function srchFood(q){
-  let list=FOOD_DB;
+  const list0=getAllFoods();
+  let list=list0;
   const cat=window._currentFoodCat||"Tutti";
   if(cat!=="Tutti") list=list.filter(f=>(f.cat||"Altro")===cat);
   if(q.trim()) list=list.filter(f=>f.name.toLowerCase().includes(q.toLowerCase()));
@@ -1143,6 +1146,119 @@ async function addManual(){
 }
 window.addManual=addManual;
 
+// ─── FOOD DATABASE MANAGER ────────────────────────────────────────────────────
+let _foodDBSearch = "";
+let _editingFood = null;
+
+function renderFoodDB(){
+  const el = document.getElementById("food-db-content");
+  if(!el) return;
+  const allFoods = getAllFoods();
+  const filtered = _foodDBSearch
+    ? allFoods.filter(f=>f.name.toLowerCase().includes(_foodDBSearch.toLowerCase()))
+    : allFoods;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" placeholder="🔍 Cerca nel database…" value="${esc(_foodDBSearch)}"
+        oninput="_foodDBSearch=this.value;renderFoodDB()"
+        style="flex:1;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit;outline:none">
+      <button onclick="openAddFoodDB()" style="padding:10px 14px;background:var(--accent);color:#0a0a14;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap">+ Nuovo</button>
+    </div>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:10px">${filtered.length} alimenti · Modifica o aggiungi al diario</p>
+    ${filtered.map((f,i)=>{
+      const isCustom = _customFoods.some(c=>c.name===f.name);
+      return `<div class="card" style="margin-bottom:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;color:#fff;margin-bottom:2px">${esc(f.name)}
+              ${isCustom?'<span style="font-size:10px;color:var(--accent);margin-left:4px">✦ custom</span>':''}
+            </div>
+            <div style="font-size:11px;color:var(--muted)">per ${f.unit||"100g"}: ${f.kcal} kcal · P ${f.protein}g · C ${f.carbs}g · G ${f.fat}g</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">
+            <button onclick="openEditFoodDB(${JSON.stringify(f).replace(/"/g,'&quot;')})" class="btn-icon">✏️</button>
+            <button onclick="addFoodDBToDiary(${JSON.stringify(f).replace(/"/g,'&quot;')})" class="btn-icon success">+</button>
+            ${isCustom?`<button onclick="deleteFoodDB('${esc(f.name)}')" class="btn-icon danger">🗑️</button>`:""}
+          </div>
+        </div>
+      </div>`;
+    }).join("")}`;
+}
+window.renderFoodDB=renderFoodDB;
+
+function openAddFoodDB(){
+  _editingFood = null;
+  showFoodDBForm({name:"",kcal:"",protein:"",carbs:"",fat:"",unit:"100g",cat:"Personalizzati"});
+}
+window.openAddFoodDB=openAddFoodDB;
+
+function openEditFoodDB(f){
+  if(typeof f === "string") f=JSON.parse(f);
+  _editingFood = f;
+  showFoodDBForm(f);
+}
+window.openEditFoodDB=openEditFoodDB;
+
+function showFoodDBForm(f){
+  const el = document.getElementById("food-db-content");
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button onclick="renderFoodDB()" class="btn-back">← Indietro</button>
+      <h3 style="font-size:16px;font-weight:800;color:#fff;margin:0">${_editingFood?"Modifica":"Nuovo alimento"}</h3>
+    </div>
+    <div class="form-group"><label class="form-label">Nome alimento</label>
+      <input type="text" id="fdb-name" value="${esc(f.name)}" placeholder="Es. Yogurt greco Total 0%"></div>
+    <div class="form-group"><label class="form-label">Unità di misura</label>
+      <input type="text" id="fdb-unit" value="${esc(f.unit||"100g")}" placeholder="Es. 100g, 1 uovo ~50g"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div><label class="form-label">🔥 Kcal</label><input type="number" id="fdb-kcal" value="${f.kcal||""}" placeholder="0"></div>
+      <div><label class="form-label">💪 Proteine (g)</label><input type="number" id="fdb-pro" value="${f.protein||""}" placeholder="0"></div>
+      <div><label class="form-label">🌾 Carboidrati (g)</label><input type="number" id="fdb-car" value="${f.carbs||""}" placeholder="0"></div>
+      <div><label class="form-label">🥑 Grassi (g)</label><input type="number" id="fdb-fat" value="${f.fat||""}" placeholder="0"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Categoria</label>
+      <select id="fdb-cat" style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:12px;padding:12px;color:#fff;font-size:14px;font-family:inherit;outline:none">
+        ${["Carni","Pesce","Uova e Latticini","Cereali","Verdure","Frutta","Legumi","Grassi","Integratori","Bevande","Personalizzati"].map(c=>`<option value="${c}" ${(f.cat||"Personalizzati")===c?"selected":""}>${c}</option>`).join("")}
+      </select></div>
+    <button class="btn-primary" onclick="saveFoodDB()">💾 Salva alimento</button>`;
+}
+
+async function saveFoodDB(){
+  const name = document.getElementById("fdb-name").value.trim();
+  if(!name){ alert("Inserisci il nome"); return; }
+  const newFood = {
+    name, unit: document.getElementById("fdb-unit").value||"100g",
+    kcal: Number(document.getElementById("fdb-kcal").value)||0,
+    protein: Number(document.getElementById("fdb-pro").value)||0,
+    carbs: Number(document.getElementById("fdb-car").value)||0,
+    fat: Number(document.getElementById("fdb-fat").value)||0,
+    cat: document.getElementById("fdb-cat").value||"Personalizzati"
+  };
+  // Remove old entry if editing (by name)
+  const oldName = _editingFood ? _editingFood.name : null;
+  _customFoods = _customFoods.filter(f=>f.name !== (oldName||name));
+  _customFoods.push(newFood);
+  await saveCustomFoods();
+  _foodDBSearch = "";
+  renderFoodDB();
+}
+window.saveFoodDB=saveFoodDB;
+
+async function deleteFoodDB(name){
+  if(!confirm("Eliminare '"+name+"' dal database?")) return;
+  _customFoods = _customFoods.filter(f=>f.name!==name);
+  await saveCustomFoods();
+  renderFoodDB();
+}
+window.deleteFoodDB=deleteFoodDB;
+
+async function addFoodDBToDiary(f){
+  if(typeof f === "string") f=JSON.parse(f);
+  openFoodQtyModal(f);
+}
+window.addFoodDBToDiary=addFoodDBToDiary;
+
 async function _addEntry(entry){
   const entries=await getDiary(nutritionDate);
   entries.push({id:uid(),...entry});
@@ -1192,6 +1308,29 @@ async function saveGoals(){
   renderGoalsTab();
 }
 window.saveGoals=saveGoals;
+
+// ─── CUSTOM FOOD DATABASE ─────────────────────────────────────────────────────
+let _customFoods = [];  // loaded from Firestore
+
+async function loadCustomFoods(){
+  try{
+    const snap = await getDoc(doc(db,"customFoods","shared"));
+    _customFoods = snap.exists() ? (snap.data().foods||[]) : [];
+  }catch(e){ _customFoods = []; console.error("loadCustomFoods:",e); }
+  return _customFoods;
+}
+
+async function saveCustomFoods(){
+  await setDoc(doc(db,"customFoods","shared"),{foods:_customFoods});
+  toast("✓ Database alimenti salvato!");
+}
+
+function getAllFoods(){
+  // Merge FOOD_DB with custom foods (custom overrides by name)
+  const customNames = new Set(_customFoods.map(f=>f.name));
+  const base = FOOD_DB.filter(f=>!customNames.has(f.name));
+  return [...base, ..._customFoods];
+}
 
 // ─── WATER TRACKER ────────────────────────────────────────────────────────────
 function buildWaterHtml(glasses,goal){
