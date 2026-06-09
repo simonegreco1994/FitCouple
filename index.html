@@ -536,13 +536,16 @@ window.logout=logout;
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 function showTab(tab){
-  ["program","workouts","nutrition","goals","history","profile"].forEach(t=>{
+  ["program","workouts","nutrition","history","profile"].forEach(t=>{
     document.getElementById("tab-"+t).style.display=t===tab?"block":"none";
     document.getElementById("nav-"+t).classList.toggle("active",t===tab);
   });
+  // Also hide goals tab if visible
+  const gt=document.getElementById("tab-goals");
+  if(gt) gt.style.display="none";
   if(tab==="workouts")renderWorkoutsTab();
   else if(tab==="nutrition")renderNutritionTab();
-  else if(tab==="goals")renderGoalsTab();
+  else if(tab==="goals"){document.getElementById("tab-goals").style.display="block";renderGoalsTab();}
   else if(tab==="history")renderHistoryTab();
   else if(tab==="profile")renderProfileTab();
   else if(tab==="program")renderProgramTab();
