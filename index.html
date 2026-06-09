@@ -1195,9 +1195,9 @@ function renderFoodDBList(){
             <div style="font-size:11px;color:var(--muted)">per ${f.unit||"100g"}: ${f.kcal} kcal · P ${f.protein}g · C ${f.carbs}g · G ${f.fat}g</div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">
-            <button onclick="openEditFoodDB(${JSON.stringify(f).replace(/"/g,'&quot;')})" class="btn-icon">✏️</button>
-            <button onclick="addFoodDBToDiary(${JSON.stringify(f).replace(/"/g,'&quot;')})" class="btn-icon success">+</button>
-            ${isCustom?`<button onclick="deleteFoodDB('${esc(f.name)}')" class="btn-icon danger">🗑️</button>`:""}
+            <button onclick="openEditFoodDB(${i})" class="btn-icon">✏️</button>
+            <button onclick="addFoodDBToDiary(${i})" class="btn-icon success">+</button>
+            ${isCustom?'<button onclick="deleteFoodDB(\''+esc(f.name)+'\')" class="btn-icon danger">🗑️</button>':""}
           </div>
         </div>
       </div>`;
@@ -1212,8 +1212,9 @@ function openAddFoodDB(){
 }
 window.openAddFoodDB=openAddFoodDB;
 
-function openEditFoodDB(f){
-  if(typeof f === "string") f=JSON.parse(f);
+function openEditFoodDB(idx){
+  const f = getAllFoods()[idx];
+  if(!f) return;
   _editingFood = f;
   showFoodDBForm(f);
 }
@@ -1237,9 +1238,15 @@ function showFoodDBForm(f){
       <div><label class="form-label">🥑 Grassi (g)</label><input type="number" id="fdb-fat" value="${f.fat||""}" placeholder="0"></div>
     </div>
     <div class="form-group"><label class="form-label">Categoria</label>
-      <select id="fdb-cat" style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:12px;padding:12px;color:#fff;font-size:14px;font-family:inherit;outline:none">
-        ${["Carni","Pesce","Uova e Latticini","Cereali","Verdure","Frutta","Legumi","Grassi","Integratori","Bevande","Personalizzati"].map(c=>`<option value="${c}" ${(f.cat||"Personalizzati")===c?"selected":""}>${c}</option>`).join("")}
+      <select id="fdb-cat" onchange="toggleNewCat(this.value)"
+        style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:12px;padding:12px;color:#fff;font-size:14px;font-family:inherit;outline:none">
+        ${getAllCategories().map(c=>`<option value="${c}" ${(f.cat||"Personalizzati")===c?"selected":""}>${c}</option>`).join("")}
+        <option value="__new__">+ Nuova categoria…</option>
       </select></div>
+    <div id="new-cat-div" style="display:none;margin-top:-8px;margin-bottom:14px">
+      <input type="text" id="fdb-newcat" placeholder="Nome nuova categoria"
+        style="width:100%;background:var(--sub);border:1px solid var(--accent);border-radius:12px;padding:12px;color:#fff;font-size:14px;font-family:inherit;outline:none">
+    </div>
     <button class="btn-primary" onclick="saveFoodDB()">💾 Salva alimento</button>`;
 }
 
@@ -1252,7 +1259,14 @@ async function saveFoodDB(){
     protein: Number(document.getElementById("fdb-pro").value)||0,
     carbs: Number(document.getElementById("fdb-car").value)||0,
     fat: Number(document.getElementById("fdb-fat").value)||0,
-    cat: document.getElementById("fdb-cat").value||"Personalizzati"
+    cat: (()=>{
+      const sel=document.getElementById("fdb-cat").value;
+      if(sel==="__new__"){
+        const nc=(document.getElementById("fdb-newcat")||{}).value||"";
+        return nc.trim()||"Personalizzati";
+      }
+      return sel||"Personalizzati";
+    })()
   };
   // Remove old entry if editing (by name)
   const oldName = _editingFood ? _editingFood.name : null;
@@ -1278,8 +1292,9 @@ async function deleteFoodDB(name){
 }
 window.deleteFoodDB=deleteFoodDB;
 
-async function addFoodDBToDiary(f){
-  if(typeof f === "string") f=JSON.parse(f);
+async function addFoodDBToDiary(idx){
+  const f = getAllFoods()[idx];
+  if(!f) return;
   openFoodQtyModal(f);
 }
 window.addFoodDBToDiary=addFoodDBToDiary;
@@ -1349,6 +1364,18 @@ async function saveCustomFoods(){
   await setDoc(doc(db,"customFoods","shared"),{foods:_customFoods});
   toast("✓ Database alimenti salvato!");
 }
+
+function getAllCategories(){
+  const base=["Carni","Pesce","Uova e Latticini","Cereali","Verdure","Frutta","Legumi","Grassi","Integratori","Bevande","Personalizzati"];
+  const custom=_customFoods.map(f=>f.cat).filter(Boolean);
+  return [...new Set([...base,...custom])].sort();
+}
+
+function toggleNewCat(val){
+  const div=document.getElementById("new-cat-div");
+  if(div) div.style.display=val==="__new__"?"block":"none";
+}
+window.toggleNewCat=toggleNewCat;
 
 function getAllFoods(){
   // Merge FOOD_DB with custom foods (custom overrides by name)
@@ -2198,9 +2225,28 @@ window.applyMacrosToGoals=applyMacrosToGoals;
 function renderRecipesList(){
   const el=document.getElementById("recipes-list");
   if(!el) return;
-  const recipes=window._sharedRecipes||[];
-  if(!recipes.length){
+  const allRecipes=window._sharedRecipes||[];
+  const q=(window._recipesSearch||"").toLowerCase();
+  const recipes=q?allRecipes.filter(r=>r.name.toLowerCase().includes(q)):allRecipes;
+
+  // Search bar (only once)
+  if(!document.getElementById("recipes-search-inp")&&allRecipes.length>0){
+    const bar=document.createElement("div");
+    bar.style.cssText="margin-bottom:12px";
+    bar.innerHTML='<input type="text" id="recipes-search-inp" placeholder="🔍 Cerca ricetta…" style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit;outline:none">';
+    el.parentNode.insertBefore(bar,el);
+    document.getElementById("recipes-search-inp").addEventListener("input",function(){
+      window._recipesSearch=this.value;
+      renderRecipesList();
+    });
+  }
+
+  if(!allRecipes.length){
     el.innerHTML=`<p class="empty" style="margin-top:20px">Nessuna ricetta condivisa.<br>Creane una! 🍽️</p>`;
+    return;
+  }
+  if(!recipes.length){
+    el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:16px">Nessuna ricetta trovata.</p>`;
     return;
   }
   el.innerHTML=recipes.map(r=>`
@@ -2265,7 +2311,7 @@ function renderRecipeIngredients(){
         <button class="btn-icon danger" onclick="rmRecipeIng(${i})">🗑️</button>
       </div>
       <div style="position:relative;margin-bottom:8px">
-        <input type="text" placeholder="Cerca o scrivi alimento…" value="${esc(foodName)}"
+        <input type="text" id="rfood-inp-${i}" placeholder="Cerca o scrivi alimento…" value="${esc(foodName)}"
           oninput="searchRecipeFood(${i},this.value)" onfocus="showRecipeFoodResults(${i})"
           style="width:100%;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;font-family:inherit;outline:none">
         <div id="rfood-res-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:10px;z-index:50;max-height:180px;overflow-y:auto;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
@@ -2300,18 +2346,19 @@ function searchRecipeFood(i,q){
   if(!res) return;
   if(!q.trim()){
     // Show all if empty
-    const all=FOOD_DB.slice(0,10);
+    const all=getAllFoods().slice(0,10);
     renderRFoodResults(i,all,res);
     return;
   }
-  const matches=FOOD_DB.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
+  const matches=getAllFoods().filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
   // If no exact match, offer manual entry
   renderRFoodResults(i,matches,res,q);
 }
 window.searchRecipeFood=searchRecipeFood;
 
 function showRecipeFoodResults(i){
-  const inp=document.querySelector('#rec-ingredients .card:nth-child('+(i+1)+') input[type="text"]');
+  // Find the input for this ingredient
+  const inp=document.getElementById("rfood-inp-"+i);
   const q=inp?inp.value:"";
   searchRecipeFood(i,q);
 }
@@ -2319,8 +2366,9 @@ window.showRecipeFoodResults=showRecipeFoodResults;
 
 function renderRFoodResults(i,matches,res,q){
   res.style.display="block";
+  const allF=getAllFoods();
   let html=matches.map((f,fi)=>{
-    const idx=FOOD_DB.indexOf(f);
+    const idx=allF.indexOf(f);
     return '<div onclick="selectRFood('+i+','+idx+')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;color:#fff">'+
       '<div style="font-weight:600">'+esc(f.name)+'</div>'+
       '<div style="font-size:11px;color:var(--muted)">'+f.kcal+' kcal · P '+f.protein+'g · C '+f.carbs+'g · G '+f.fat+'g per '+f.unit+'</div>'+
@@ -2336,7 +2384,22 @@ function renderRFoodResults(i,matches,res,q){
 }
 
 function selectRFood(i,foodIdx){
-  window._recipeIngredients[i].foodIdx=foodIdx;
+  // foodIdx is index in getAllFoods(), map back to FOOD_DB idx
+  const allF=getAllFoods();
+  const food=allF[foodIdx];
+  const dbIdx=FOOD_DB.findIndex(f=>f.name===food.name);
+  if(dbIdx>=0){
+    window._recipeIngredients[i].foodIdx=dbIdx;
+    window._recipeIngredients[i].manualName=null;
+  } else {
+    // Custom food - store as manual with values
+    window._recipeIngredients[i].foodIdx=-1;
+    window._recipeIngredients[i].manualName=food.name;
+    window._recipeIngredients[i].manualKcal=food.kcal;
+    window._recipeIngredients[i].manualProtein=food.protein;
+    window._recipeIngredients[i].manualCarbs=food.carbs;
+    window._recipeIngredients[i].manualFat=food.fat;
+  }
   window._recipeIngredients[i].manualName=null;
   window._recipeIngredients[i].manualKcal=null;
   // Hide results
