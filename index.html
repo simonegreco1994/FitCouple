@@ -200,13 +200,14 @@ input:focus{border-color:var(--accent)}
     </div>
     <div id="tab-workouts" class="scroll-area" style="display:none"></div>
     <div id="tab-nutrition" class="scroll-area" style="display:none"></div>
+    <div id="tab-program"   class="scroll-area" style="display:none"></div>
     <div id="tab-goals"     class="scroll-area" style="display:none"></div>
     <div id="tab-history"   class="scroll-area" style="display:none"></div>
     <div id="tab-profile"   class="scroll-area" style="display:none"></div>
     <nav class="bottom-nav">
+      <button class="nav-btn" id="nav-program"   onclick="showTab('program')"><span>📅</span><span>Piano</span></button>
       <button class="nav-btn" id="nav-workouts" onclick="showTab('workouts')"><span>🏋️</span><span>Schede</span></button>
       <button class="nav-btn" id="nav-nutrition" onclick="showTab('nutrition')"><span>🥗</span><span>Diario</span></button>
-      <button class="nav-btn" id="nav-goals"     onclick="showTab('goals')"><span>🎯</span><span>Obiettivi</span></button>
       <button class="nav-btn" id="nav-history"   onclick="showTab('history')"><span>📋</span><span>Storico</span></button>
       <button class="nav-btn" id="nav-profile"   onclick="showTab('profile')"><span>👤</span><span>Profilo</span></button>
     </nav>
@@ -478,7 +479,7 @@ onAuthStateChanged(auth,async user=>{
     document.getElementById("hdr-name").textContent=profile.name||CU.email;
     subscribeWorkouts();
     showScreen("main");
-    showTab("workouts");
+    showTab("program");
   }else{
     CU=null;profile=null;
     if(unsubW){unsubW();unsubW=null}
@@ -535,7 +536,7 @@ window.logout=logout;
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 function showTab(tab){
-  ["workouts","nutrition","goals","history","profile"].forEach(t=>{
+  ["program","workouts","nutrition","goals","history","profile"].forEach(t=>{
     document.getElementById("tab-"+t).style.display=t===tab?"block":"none";
     document.getElementById("nav-"+t).classList.toggle("active",t===tab);
   });
@@ -544,6 +545,7 @@ function showTab(tab){
   else if(tab==="goals")renderGoalsTab();
   else if(tab==="history")renderHistoryTab();
   else if(tab==="profile")renderProfileTab();
+  else if(tab==="program")renderProgramTab();
 }
 window.showTab=showTab;
 
@@ -1097,6 +1099,96 @@ async function saveGoals(){
   renderGoalsTab();
 }
 window.saveGoals=saveGoals;
+
+// ─── WEEKLY PROGRAM ───────────────────────────────────────────────────────────
+const DAYS_IT=["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+
+function getTodayDayIdx(){
+  // JS: 0=Sun,1=Mon...6=Sat → convert to Mon=0...Sun=6
+  const d=new Date().getDay();
+  return d===0?6:d-1;
+}
+
+async function loadProgram(){
+  try{
+    const snap=await getDoc(doc(db,"programs",CU.uid));
+    return snap.exists()?snap.data().week:[null,null,null,null,null,null,null];
+  }catch(e){ return [null,null,null,null,null,null,null]; }
+}
+
+async function saveProgram(week){
+  await setDoc(doc(db,"programs",CU.uid),{uid:CU.uid,week});
+  toast("✓ Piano settimanale salvato!");
+}
+
+async function renderProgramTab(){
+  const el=document.getElementById("tab-program");
+  el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
+  const week=await loadProgram();
+  const todayIdx=getTodayDayIdx();
+  const wkts=workouts;
+
+  // Today's workout card
+  const todayWkt=week[todayIdx]?wkts.find(w=>w.id===week[todayIdx]):null;
+  const todayHtml=`
+    <div style="background:${todayWkt?"rgba(232,255,71,.08)":"var(--card)"};border:1px solid ${todayWkt?"var(--accent)":"var(--border)"};border-radius:18px;padding:18px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:24px">📅</span>
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px">Oggi · ${DAYS_IT[todayIdx]}</div>
+          <div style="color:#fff;font-size:18px;font-weight:800">${todayWkt?esc(todayWkt.name):"Riposo 😴"}</div>
+        </div>
+      </div>
+      ${todayWkt?`
+        <div style="color:var(--muted);font-size:13px;margin-bottom:12px">${(todayWkt.exercises||[]).length} esercizi</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+          ${(todayWkt.exercises||[]).slice(0,4).map(e=>`<span style="background:var(--sub);border-radius:20px;padding:4px 10px;font-size:11px;color:#ccc">${esc(e.name)}</span>`).join("")}
+          ${(todayWkt.exercises||[]).length>4?`<span style="background:var(--sub);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--muted)">+${(todayWkt.exercises||[]).length-4} altri</span>`:""}
+        </div>
+        <button class="btn-primary" onclick="startLive('${todayWkt.id}')">▶️ Inizia allenamento</button>`
+      :"<p style='color:#555;font-size:13px'>Nessun allenamento programmato per oggi.</p>"}
+    </div>`;
+
+  // Week grid
+  const weekHtml=DAYS_IT.map((day,i)=>{
+    const wkt=week[i]?wkts.find(w=>w.id===week[i]):null;
+    const isToday=i===todayIdx;
+    return `<div style="background:${isToday?"rgba(232,255,71,.06)":"var(--card)"};border:1px solid ${isToday?"var(--accent)":"var(--border)"};border-radius:14px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;border-radius:10px;background:${isToday?"var(--accent)":"var(--sub)"};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${isToday?"#0a0a14":"var(--muted)"}">
+            ${day.slice(0,3)}
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:${wkt?"#fff":"#555"}">${wkt?esc(wkt.name):"Riposo"}</div>
+            ${wkt?`<div style="font-size:11px;color:var(--muted)">${(wkt.exercises||[]).length} esercizi</div>`:""}
+          </div>
+        </div>
+        <select onchange="setProgramDay(${i},this.value,'${JSON.stringify(week).replace(/'/g,"\'")}')"
+          style="background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:#fff;font-size:12px;font-family:inherit;outline:none;max-width:130px">
+          <option value="">Riposo</option>
+          ${wkts.map(w=>`<option value="${w.id}" ${week[i]===w.id?"selected":""}>${esc(w.name)}</option>`).join("")}
+        </select>
+      </div>
+    </div>`;
+  }).join("");
+
+  el.innerHTML=`
+    <h2 class="section-title" style="margin-bottom:4px">Piano settimanale</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Associa una scheda ad ogni giorno</p>
+    ${todayHtml}
+    ${weekHtml}`;
+}
+window.renderProgramTab=renderProgramTab;
+
+async function setProgramDay(dayIdx,wktId,weekJson){
+  let week;
+  try{ week=JSON.parse(weekJson); }catch{ week=[null,null,null,null,null,null,null]; }
+  week[dayIdx]=wktId||null;
+  await saveProgram(week);
+  renderProgramTab();
+}
+window.setProgramDay=setProgramDay;
 
 // ─── EXERCISE PICKER ─────────────────────────────────────────────────────────
 let _exGroup="all", _exSelected=null;
