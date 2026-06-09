@@ -1155,7 +1155,19 @@ async function renderBWRecentHtml(entries){
 }
 
 async function buildBWChartHtml(entries){
-  if(!entries||entries.length<2) return "";
+  if(!entries||entries.length<1) return "";
+  // Single entry: show just the value card
+  if(entries.length===1){
+    const e=entries[0];
+    return `<div class="card" style="margin-bottom:12px">
+      <div style="font-weight:700;font-size:14px;color:#fff;margin-bottom:8px">⚖️ Peso corporeo</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:36px;font-weight:900;color:var(--accent2)">${e.weight} <span style="font-size:16px;color:var(--muted)">kg</span></div>
+        <div style="text-align:right;color:var(--muted);font-size:12px">Registrato il<br>${new Date(e.date).toLocaleDateString("it-IT",{day:"2-digit",month:"short",year:"numeric"})}</div>
+      </div>
+      <p style="color:#555;font-size:12px;margin-top:8px">Registra altri pesi nel Profilo per vedere il grafico.</p>
+    </div>`;
+  }
   const weights=entries.map(e=>e.weight);
   const minW=Math.min(...weights), maxW=Math.max(...weights);
   const range=maxW-minW||1;
@@ -1527,15 +1539,9 @@ async function renderProgressTab(){
 
   // Body weight chart - always show if data exists
   const bwE=await loadBodyWeights();
-  console.log("BW entries in progress tab:", bwE.length);
-  if(bwE.length>=2){
+  if(bwE.length>=1){
     const bwHtml=await buildBWChartHtml(bwE);
-    console.log("BW chart html length:", bwHtml.length);
     el.innerHTML+=bwHtml;
-  } else {
-    el.innerHTML+=`<div class="card" style="margin-bottom:12px;text-align:center;padding:16px">
-      <p style="color:var(--muted);font-size:13px">⚖️ Registra almeno 2 pesi nel tab Profilo per vedere il grafico.</p>
-    </div>`;
   }
 
   if(!sessions.length){
