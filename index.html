@@ -859,14 +859,24 @@ async function renderNutritionTab(){
   const el=document.getElementById("tab-nutrition");
   el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
   let entries=[];
+  let waterGlasses=0;
   try{ entries=await getDiary(nutritionDate); }
   catch(e){
     console.error("Diary load error:",e);
     el.innerHTML=`<div class="section-header"><h2 class="section-title">Diario alimentare</h2><button class="btn-add" onclick="openFoodAdd()">+ Aggiungi</button></div>
     <div class="form-group"><input type="date" value="${nutritionDate}" onchange="nutritionDate=this.value;renderNutritionTab()"></div>
+    ${waterHtml}
     <p class="empty">Errore caricamento dati.<br>Prova ad aggiungere un alimento.</p>`;
     return;
   }
+  // Load water data
+  let waterGlasses2=0;
+  try{
+    const wSnap=await getDoc(doc(db,"water",CU.uid+"_"+nutritionDate));
+    waterGlasses2=wSnap.exists()?(wSnap.data().glasses||0):0;
+  }catch(e){ waterGlasses2=0; }
+  const waterGoal=8;
+  const waterHtml=buildWaterHtml(waterGlasses2,waterGoal);
   const g=profile.goals||{kcal:2000,protein:150,carbs:200,fat:65};
   const tot=entries.reduce((a,e)=>({kcal:a.kcal+e.kcal,protein:a.protein+e.protein,carbs:a.carbs+e.carbs,fat:a.fat+e.fat}),{kcal:0,protein:0,carbs:0,fat:0});
   const kpct=Math.min((tot.kcal/g.kcal)*100,100);
@@ -884,6 +894,7 @@ async function renderNutritionTab(){
       <button class="btn-add" onclick="openFoodAdd()">+ Aggiungi</button>
     </div>
     <div class="form-group"><input type="date" value="${nutritionDate}" onchange="nutritionDate=this.value;renderNutritionTab()"></div>
+    ${waterHtml}
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px">
         <div><div style="color:var(--muted);font-size:12px">Kcal consumate</div>
@@ -1102,6 +1113,47 @@ async function saveGoals(){
   renderGoalsTab();
 }
 window.saveGoals=saveGoals;
+
+// ─── WATER TRACKER ────────────────────────────────────────────────────────────
+function buildWaterHtml(glasses,goal){
+  const pct=Math.min((glasses/goal)*100,100);
+  const color=glasses>=goal?"var(--green)":glasses>=goal*0.5?"var(--accent2)":"var(--muted)";
+  const drops=Array.from({length:goal},(_,i)=>`
+    <button onclick="setWater(${i+1})" style="font-size:22px;background:none;border:none;cursor:pointer;opacity:${i<glasses?1:0.2};transition:opacity .15s;padding:2px">
+      💧
+    </button>`).join("");
+  return `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-weight:700;font-size:15px;color:#fff">💧 Idratazione</div>
+      <div style="font-size:18px;font-weight:900;color:${color}">${glasses} / ${goal} bicchieri</div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:10px">${drops}</div>
+    <div class="progress-track" style="height:6px">
+      <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="setWater(Math.max(0,${glasses}-1))" style="flex:1;padding:8px;background:var(--sub);border:none;border-radius:10px;color:var(--muted);font-size:18px;cursor:pointer">−</button>
+      <button onclick="setWater(${glasses+1})" style="flex:2;padding:8px;background:rgba(96,165,250,.15);border:1px solid var(--accent2);border-radius:10px;color:var(--accent2);font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">+ Bicchiere</button>
+      <button onclick="setWater(0)" style="flex:1;padding:8px;background:var(--sub);border:none;border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit">Reset</button>
+    </div>
+  </div>`;
+}
+
+async function setWater(glasses){
+  const g=Math.max(0,Math.min(glasses,20));
+  try{
+    await setDoc(doc(db,"water",CU.uid+"_"+nutritionDate),{uid:CU.uid,date:nutritionDate,glasses:g});
+    // Update UI without full reload
+    const waterGoal=8;
+    const card=document.querySelector("#tab-nutrition .card");
+    if(card&&card.querySelector("button[onclick^='setWater']")){
+      card.outerHTML=buildWaterHtml(g,waterGoal);
+    } else {
+      renderNutritionTab();
+    }
+  }catch(e){ console.error("Water save error:",e); renderNutritionTab(); }
+}
+window.setWater=setWater;
 
 // ─── BODY WEIGHT TRACKING ─────────────────────────────────────────────────────
 async function loadBodyWeights(){
