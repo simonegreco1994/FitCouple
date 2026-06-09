@@ -1153,18 +1153,36 @@ let _editingFood = null;
 function renderFoodDB(){
   const el = document.getElementById("food-db-content");
   if(!el) return;
+
+  // First render: build the full shell including the search input (only once)
+  if(!document.getElementById("fdb-search-inp")){
+    el.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input type="text" id="fdb-search-inp" placeholder="🔍 Cerca nel database…"
+          style="flex:1;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit;outline:none">
+        <button onclick="openAddFoodDB()" style="padding:10px 14px;background:var(--accent);color:#0a0a14;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap">+ Nuovo</button>
+      </div>
+      <div id="fdb-list"></div>`;
+    // Add event listener to input (no oninput attribute - avoids re-render loop)
+    const inp = document.getElementById("fdb-search-inp");
+    inp.addEventListener("input", function(){
+      _foodDBSearch = this.value;
+      renderFoodDBList();
+    });
+    inp.value = _foodDBSearch;
+  }
+  renderFoodDBList();
+}
+
+function renderFoodDBList(){
+  const listEl = document.getElementById("fdb-list");
+  if(!listEl) return;
   const allFoods = getAllFoods();
   const filtered = _foodDBSearch
     ? allFoods.filter(f=>f.name.toLowerCase().includes(_foodDBSearch.toLowerCase()))
     : allFoods;
 
-  el.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <input type="text" placeholder="🔍 Cerca nel database…" value="${esc(_foodDBSearch)}"
-        oninput="_foodDBSearch=this.value;renderFoodDB()"
-        style="flex:1;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit;outline:none">
-      <button onclick="openAddFoodDB()" style="padding:10px 14px;background:var(--accent);color:#0a0a14;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap">+ Nuovo</button>
-    </div>
+  listEl.innerHTML = `
     <p style="color:var(--muted);font-size:11px;margin-bottom:10px">${filtered.length} alimenti · Modifica o aggiungi al diario</p>
     ${filtered.map((f,i)=>{
       const isCustom = _customFoods.some(c=>c.name===f.name);
@@ -1185,6 +1203,7 @@ function renderFoodDB(){
       </div>`;
     }).join("")}`;
 }
+window.renderFoodDBList=renderFoodDBList;
 window.renderFoodDB=renderFoodDB;
 
 function openAddFoodDB(){
@@ -1241,6 +1260,12 @@ async function saveFoodDB(){
   _customFoods.push(newFood);
   await saveCustomFoods();
   _foodDBSearch = "";
+  // Clear search input if visible
+  const inp=document.getElementById("fdb-search-inp");
+  if(inp) inp.value="";
+  // Remove shell to force full re-render
+  const dbContent=document.getElementById("food-db-content");
+  if(dbContent) dbContent.innerHTML="";
   renderFoodDB();
 }
 window.saveFoodDB=saveFoodDB;
@@ -1249,7 +1274,7 @@ async function deleteFoodDB(name){
   if(!confirm("Eliminare '"+name+"' dal database?")) return;
   _customFoods = _customFoods.filter(f=>f.name!==name);
   await saveCustomFoods();
-  renderFoodDB();
+  renderFoodDBList();
 }
 window.deleteFoodDB=deleteFoodDB;
 
