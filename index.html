@@ -2680,8 +2680,22 @@ function updateRecipeMainQty(){
   if(!mainIngs.length) return;
   const r=window._modalRecipe;
   if(!r) return;
-  // Recalculate totals based on new main ingredient quantities
+  const allIngs=r.ingredients||[];
+
+  // 1. Fixed contribution from NON-main ingredients
   let tot={kcal:0,protein:0,carbs:0,fat:0};
+  allIngs.filter(ing=>!ing.isMain).forEach(ing=>{
+    const food=getAllFoods().find(f=>f.name===ing.foodName);
+    if(food){
+      const f=(ing.qty||100)/100;
+      tot.kcal+=food.kcal*f;
+      tot.protein+=food.protein*f;
+      tot.carbs+=food.carbs*f;
+      tot.fat+=food.fat*f;
+    }
+  });
+
+  // 2. Variable contribution from MAIN ingredients (based on user input)
   mainIngs.forEach((ing,mi)=>{
     const inp=document.getElementById("main-qty-"+mi);
     const qty=inp?Number(inp.value)||0:ing.qty;
@@ -2694,9 +2708,9 @@ function updateRecipeMainQty(){
       tot.fat+=food.fat*f;
     }
   });
+
   const prev=document.getElementById("fqm-preview");
   if(prev) prev.innerHTML=buildModalPreview({kcal:tot.kcal,protein:tot.protein,carbs:tot.carbs,fat:tot.fat},1);
-  // Update modal food for confirm
   window._modalFood={...window._modalFood,kcal:tot.kcal,protein:tot.protein,carbs:tot.carbs,fat:tot.fat};
   window._modalBaseQty=1;
 }
@@ -2794,18 +2808,15 @@ function addRecipeToDiary(id){
     });
   }
   // Food to show in modal: use main totals if available, else full recipe
-  const displayKcal=mainTotals?mainTotals.kcal:r.totals.kcal;
-  const displayProtein=mainTotals?mainTotals.protein:r.totals.protein;
-  const displayCarbs=mainTotals?mainTotals.carbs:r.totals.carbs;
-  const displayFat=mainTotals?mainTotals.fat:r.totals.fat;
+  // Always start with full recipe totals
   const displayBase=mainTotals?mainTotals.weight:totalWeight;
   const recipeFood={
     name:r.name,
-    kcal:displayKcal,
-    protein:displayProtein,
-    carbs:displayCarbs,
-    fat:displayFat,
-    unit:(mainTotals?"ingredienti principali ":"ricetta completa ")+displayBase+"g",
+    kcal:r.totals.kcal,
+    protein:r.totals.protein,
+    carbs:r.totals.carbs,
+    fat:r.totals.fat,
+    unit:"ricetta completa "+totalWeight+"g",
     _recipeId:id,
     _recipeWeight:totalWeight
   };
@@ -2814,6 +2825,7 @@ function addRecipeToDiary(id){
   window._modalBaseQty=displayBase;
   window._modalMainIngs=mainIngs;
   window._modalRecipe=r;
+  // Will call updateRecipeMainQty after modal opens
   const modal=document.getElementById("food-qty-modal");
   const previewHtml=buildModalPreview(recipeFood,totalWeight);
   modal.querySelector(".modal-inner").innerHTML=`
@@ -2854,6 +2866,10 @@ function addRecipeToDiary(id){
       <button class="btn-primary" onclick="confirmFoodQtyModal()">✅ Aggiungi al diario</button>
     </div>`;
   modal.style.display="flex";
+  // Recalculate with default main ingredient quantities
+  if(mainIngs.length>0){
+    requestAnimationFrame(()=>requestAnimationFrame(()=>updateRecipeMainQty()));
+  }
 }
 window.addRecipeToDiary=addRecipeToDiary;
 
