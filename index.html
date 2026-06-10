@@ -506,8 +506,8 @@ onAuthStateChanged(auth,async user=>{
     subscribeWorkouts();
     subscribeRecipes();
     subscribeCustomFoods();
-    publishAppVersion();
-    setTimeout(checkAppVersion, 2000);
+    autoPublishIfNewer();
+    setTimeout(checkAppVersion, 1500);
     subscribeVersion();
     showScreen("main");
     showTab("program");
@@ -605,8 +605,10 @@ function subscribeVersion(){
     const serverVer=snap.data().version;
     if(serverVer && serverVer!==APP_VERSION){
       updateVersionIndicator(false);
+      showUpdatePopup(serverVer);
     } else {
       updateVersionIndicator(true);
+      hideUpdatePopup();
     }
   });
 }
@@ -1551,20 +1553,78 @@ async function checkAppVersion(){
     const serverVer=snap.exists()?snap.data().version:null;
     if(serverVer && serverVer!==APP_VERSION){
       updateVersionIndicator(false);
+      showUpdatePopup(serverVer);
     } else {
       updateVersionIndicator(true);
+      hideUpdatePopup();
     }
   }catch(e){
-    updateVersionIndicator(true); // assume ok if can't check
+    updateVersionIndicator(true);
   }
 }
 window.checkAppVersion=checkAppVersion;
 
-// Write version to Firestore on login so other devices can detect updates
+function showUpdatePopup(newVer){
+  let popup=document.getElementById("update-popup");
+  if(popup) return; // already shown
+  popup=document.createElement("div");
+  popup.id="update-popup";
+  popup.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px";
+  popup.innerHTML=`
+    <div style="background:var(--card);border-radius:20px;padding:28px;max-width:340px;width:100%;border:1px solid var(--border);text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🆕</div>
+      <h2 style="color:var(--accent);font-size:20px;font-weight:900;margin-bottom:8px">Aggiornamento disponibile</h2>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:6px">Versione <strong style="color:#fff">${newVer}</strong> disponibile</p>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Hai la versione <strong style="color:#fff">${APP_VERSION}</strong></p>
+      <div style="background:var(--sub);border-radius:12px;padding:14px;margin-bottom:20px;text-align:left">
+        <p style="color:#ccc;font-size:13px;margin-bottom:10px;font-weight:700">Come aggiornare:</p>
+        <p style="color:var(--muted);font-size:13px;line-height:1.8">
+          📱 <strong style="color:#fff">iPhone (da Home):</strong><br>
+          Chiudi completamente l'app e riaprila.<br>
+          Se non basta, riaprila da Safari e rifai "Condividi → Aggiungi a Home".<br><br>
+          💻 <strong style="color:#fff">Browser:</strong><br>
+          Premi <strong style="color:var(--accent)">Ctrl+Shift+R</strong> (Windows) o <strong style="color:var(--accent)">Cmd+Shift+R</strong> (Mac).
+        </p>
+      </div>
+      <button onclick="hideUpdatePopup()" style="width:100%;padding:12px;background:var(--sub);color:var(--muted);border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">
+        Ho capito, aggiornerò a breve
+      </button>
+    </div>`;
+  document.body.appendChild(popup);
+}
+
+function hideUpdatePopup(){
+  const popup=document.getElementById("update-popup");
+  if(popup) popup.remove();
+}
+window.hideUpdatePopup=hideUpdatePopup;
+
 async function publishAppVersion(){
   try{
     await setDoc(doc(db,"appMeta","version"),{version:APP_VERSION,updatedAt:new Date().toISOString()});
   }catch(e){}
+}
+
+// Automatically publish if local version is newer than Firestore
+async function autoPublishIfNewer(){
+  try{
+    const snap=await getDoc(doc(db,"appMeta","version"));
+    const serverVer=snap.exists()?snap.data().version:null;
+    if(!serverVer||compareVersions(APP_VERSION,serverVer)>0){
+      await publishAppVersion();
+      console.log("Published new version:",APP_VERSION);
+    }
+  }catch(e){}
+}
+
+function compareVersions(a,b){
+  const pa=a.split(".").map(Number);
+  const pb=b.split(".").map(Number);
+  for(let i=0;i<3;i++){
+    const diff=(pa[i]||0)-(pb[i]||0);
+    if(diff!==0) return diff;
+  }
+  return 0;
 }
 
 let unsubDiary=null;
@@ -2432,6 +2492,8 @@ async function renderProfileTab(){
     </div>
     ${bwChartHtml}
 
+    <!-- DEPLOY SECTION - solo admin -->
+    
     <!-- FIRESTORE USAGE -->
     <div class="card">
       <div style="color:var(--accent);font-weight:700;margin-bottom:12px">☁️ Utilizzo Firebase (piano gratuito)</div>
