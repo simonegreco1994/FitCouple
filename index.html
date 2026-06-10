@@ -500,6 +500,9 @@ onAuthStateChanged(auth,async user=>{
     subscribeWorkouts();
     subscribeRecipes();
     subscribeCustomFoods();
+    publishAppVersion();
+    setTimeout(checkAppVersion, 2000);
+    subscribeVersion();
     showScreen("main");
     showTab("program");
   }else{
@@ -585,6 +588,30 @@ function subscribeWorkouts(){
     workouts=snap.docs.map(d=>({id:d.id,...d.data()}));
     const tab=document.getElementById("tab-workouts");
     if(tab&&tab.style.display!=="none")renderWorkoutsTab();
+  });
+}
+
+let unsubVersion=null;
+function subscribeVersion(){
+  // Listen for version changes - notify if server has newer version
+  unsubVersion=onSnapshot(doc(db,"appMeta","version"),snap=>{
+    if(!snap.exists()) return;
+    const serverVer=snap.data().version;
+    if(serverVer && serverVer!==APP_VERSION){
+      // Show persistent banner
+      let banner=document.getElementById("update-banner");
+      if(!banner){
+        banner=document.createElement("div");
+        banner.id="update-banner";
+        banner.style.cssText="position:fixed;top:0;left:0;right:0;background:var(--accent);color:#0a0a14;padding:10px 16px;text-align:center;font-weight:700;font-size:13px;z-index:9999;cursor:pointer";
+        banner.innerHTML="🆕 Versione "+serverVer+" disponibile — tocca per aggiornare";
+        banner.onclick=()=>location.reload(true);
+        document.body.appendChild(banner);
+      }
+    } else {
+      const banner=document.getElementById("update-banner");
+      if(banner) banner.remove();
+    }
   });
 }
 
@@ -1494,13 +1521,33 @@ async function saveGoals(){
 window.saveGoals=saveGoals;
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.4.0";
+const APP_VERSION="1.5.0";
 
-function checkAppVersion(){
+async function checkAppVersion(){
   const el=document.getElementById("version-check");
-  if(el) el.innerHTML='v'+APP_VERSION+' · <a href="'+location.href+'" onclick="location.reload(true);return false;" style="color:var(--accent2)">Ricarica app</a>';
+  if(!el) return;
+  try{
+    // Write current version to Firestore on load, read to compare
+    const vRef=doc(db,"appMeta","version");
+    const snap=await getDoc(vRef);
+    const serverVer=snap.exists()?snap.data().version:null;
+    if(serverVer && serverVer!==APP_VERSION){
+      el.innerHTML=`<span style="color:var(--red);font-weight:700">⚠️ Versione ${serverVer} disponibile!</span> <a href="${location.href}" onclick="location.reload(true);return false;" style="color:var(--accent2)">Ricarica ora</a>`;
+    } else {
+      el.innerHTML=`<span style="color:var(--green)">✅ v${APP_VERSION} · aggiornato</span>`;
+    }
+  }catch(e){
+    el.textContent="v"+APP_VERSION;
+  }
 }
 window.checkAppVersion=checkAppVersion;
+
+// Write version to Firestore on login so other devices can detect updates
+async function publishAppVersion(){
+  try{
+    await setDoc(doc(db,"appMeta","version"),{version:APP_VERSION,updatedAt:new Date().toISOString()});
+  }catch(e){}
+}
 
 let unsubDiary=null;
 function subscribeDiary(){
