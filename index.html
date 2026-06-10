@@ -890,7 +890,7 @@ async function renderNutritionTab(){
         style="flex:1;background:var(--sub);border-radius:10px;padding:10px;text-align:center;font-size:14px;font-weight:700;color:#fff;cursor:pointer;position:relative">
         📅 ${formatNutritionDate(nutritionDate)}
         <input type="date" id="nutrition-date-picker" value="${nutritionDate}" max="${todayStr()}"
-          onchange="nutritionDate=this.value;renderNutritionTab()"
+          onchange="setNutritionDate(this.value)"
           style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:none;padding:0">
       </div>
       <button onclick="changeNutritionDate(1)" style="background:var(--sub);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;${nutritionDate>=todayStr()?"opacity:.3;pointer-events:none":""}">›</button>
@@ -929,7 +929,7 @@ async function renderNutritionTab(){
         style="flex:1;background:var(--sub);border-radius:10px;padding:10px;text-align:center;font-size:14px;font-weight:700;color:#fff;cursor:pointer;position:relative">
         📅 ${formatNutritionDate(nutritionDate)}
         <input type="date" id="nutrition-date-picker" value="${nutritionDate}" max="${todayStr()}"
-          onchange="nutritionDate=this.value;renderNutritionTab()"
+          onchange="setNutritionDate(this.value)"
           style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:none;padding:0">
       </div>
       <button onclick="changeNutritionDate(1)" style="background:var(--sub);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;${nutritionDate>=todayStr()?"opacity:.3;pointer-events:none":""}">›</button>
@@ -1407,6 +1407,14 @@ function formatNutritionDate(dateStr){
   return d.toLocaleDateString("it-IT",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
 }
 window.formatNutritionDate=formatNutritionDate;
+
+function setNutritionDate(val){
+  if(!val) return;
+  if(val>todayStr()) return;
+  nutritionDate=val;
+  renderNutritionTab();
+}
+window.setNutritionDate=setNutritionDate;
 
 function changeNutritionDate(delta){
   const d=new Date(nutritionDate+"T12:00:00");
