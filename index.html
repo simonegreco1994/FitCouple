@@ -1171,9 +1171,9 @@ function openFoodQtyModal(food){
   setTimeout(()=>{ const inp=document.getElementById("fqm-qty"); if(inp) inp.focus(); },100);
 }
 
-function buildModalPreview(food,qty){
-  const base=window._modalBaseQty||100;
-  const f=qty/base;
+function buildModalPreview(food,qty,absolute){
+  // absolute=true: show food values directly without scaling (for recipes)
+  const f=absolute?1:(qty/(window._modalBaseQty||100));
   return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
     [["🔥 Kcal",Math.round(food.kcal*f),""],
      ["💪 Proteine",r1(food.protein*f),"g"],
@@ -2710,7 +2710,7 @@ function updateRecipeMainQty(){
   });
 
   const prev=document.getElementById("fqm-preview");
-  if(prev) prev.innerHTML=buildModalPreview({kcal:tot.kcal,protein:tot.protein,carbs:tot.carbs,fat:tot.fat},1);
+  if(prev) prev.innerHTML=buildModalPreview({kcal:tot.kcal,protein:tot.protein,carbs:tot.carbs,fat:tot.fat},1,true);
   window._modalFood={...window._modalFood,kcal:tot.kcal,protein:tot.protein,carbs:tot.carbs,fat:tot.fat};
   window._modalBaseQty=1;
 }
@@ -2827,7 +2827,7 @@ function addRecipeToDiary(id){
   window._modalRecipe=r;
   // Will call updateRecipeMainQty after modal opens
   const modal=document.getElementById("food-qty-modal");
-  const previewHtml=buildModalPreview({kcal:r.totals.kcal,protein:r.totals.protein,carbs:r.totals.carbs,fat:r.totals.fat},totalWeight);
+  const previewHtml=buildModalPreview({kcal:r.totals.kcal,protein:r.totals.protein,carbs:r.totals.carbs,fat:r.totals.fat},totalWeight,true);
   modal.querySelector(".modal-inner").innerHTML=`
     <div class="modal-header">
       <span class="modal-title">🍽️ ${esc(r.name)}</span>
