@@ -1064,9 +1064,14 @@ function openFoodQtyModal(food){
   document.getElementById("fqm-meta").textContent="per "+food.unit+": "+food.kcal+" kcal · P "+food.protein+"g · C "+food.carbs+"g · G "+food.fat+"g";
   document.getElementById("fqm-qty").value=baseQty;
   document.getElementById("food-qty-modal").style.display="flex";
-  // Call immediately AND after a tick to ensure DOM is ready
-  updateFoodQtyModal();
-  setTimeout(()=>{ updateFoodQtyModal(); const inp=document.getElementById("fqm-qty"); if(inp) inp.focus(); },50);
+  // Use requestAnimationFrame to ensure modal is painted before updating
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      updateFoodQtyModal();
+      const inp=document.getElementById("fqm-qty");
+      if(inp) inp.focus();
+    });
+  });
 }
 window.openFoodQtyModal=openFoodQtyModal;
 
