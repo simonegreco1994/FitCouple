@@ -1195,8 +1195,8 @@ function renderFoodDBList(){
             <div style="font-size:11px;color:var(--muted)">per ${f.unit||"100g"}: ${f.kcal} kcal · P ${f.protein}g · C ${f.carbs}g · G ${f.fat}g</div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">
-            <button onclick="openEditFoodDB(${i})" class="btn-icon">✏️</button>
-            <button onclick="addFoodDBToDiary(${i})" class="btn-icon success">+</button>
+            <button onclick="openEditFoodDB('${esc(f.name)}')" class="btn-icon">✏️</button>
+            <button onclick="addFoodDBToDiary('${esc(f.name)}')" class="btn-icon success">+</button>
             ${isCustom?'<button onclick="deleteFoodDB(\''+esc(f.name)+'\')" class="btn-icon danger">🗑️</button>':""}
           </div>
         </div>
@@ -1212,8 +1212,8 @@ function openAddFoodDB(){
 }
 window.openAddFoodDB=openAddFoodDB;
 
-function openEditFoodDB(idx){
-  const f = getAllFoods()[idx];
+function openEditFoodDB(name){
+  const f = getAllFoods().find(x=>x.name===name);
   if(!f) return;
   _editingFood = f;
   showFoodDBForm(f);
@@ -1292,8 +1292,8 @@ async function deleteFoodDB(name){
 }
 window.deleteFoodDB=deleteFoodDB;
 
-async function addFoodDBToDiary(idx){
-  const f = getAllFoods()[idx];
+async function addFoodDBToDiary(name){
+  const f = getAllFoods().find(x=>x.name===name);
   if(!f) return;
   openFoodQtyModal(f);
 }
