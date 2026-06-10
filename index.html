@@ -884,7 +884,13 @@ async function renderNutritionTab(){
   catch(e){
     console.error("Diary load error:",e);
     el.innerHTML=`<div class="section-header"><h2 class="section-title">Diario alimentare</h2><button class="btn-add" onclick="openFoodAdd()">+ Aggiungi</button></div>
-    <div class="form-group"><input type="date" value="${nutritionDate}" onchange="nutritionDate=this.value;renderNutritionTab()"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <button onclick="changeNutritionDate(-1)" style="background:var(--sub);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-size:18px;cursor:pointer">‹</button>
+      <div style="flex:1;background:var(--sub);border-radius:10px;padding:10px;text-align:center;font-size:14px;font-weight:700;color:#fff">
+        ${formatNutritionDate(nutritionDate)}
+      </div>
+      <button onclick="changeNutritionDate(1)" style="background:var(--sub);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-size:18px;cursor:pointer;${nutritionDate>=todayStr()?"opacity:.3;pointer-events:none":""}">›</button>
+    </div>
     ${waterHtml}
     <p class="empty">Errore caricamento dati.<br>Prova ad aggiungere un alimento.</p>`;
     return;
@@ -913,7 +919,13 @@ async function renderNutritionTab(){
       <h2 class="section-title">Diario alimentare</h2>
       <button class="btn-add" onclick="openFoodAdd()">+ Aggiungi</button>
     </div>
-    <div class="form-group"><input type="date" value="${nutritionDate}" onchange="nutritionDate=this.value;renderNutritionTab()"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <button onclick="changeNutritionDate(-1)" style="background:var(--sub);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-size:18px;cursor:pointer">‹</button>
+      <div style="flex:1;background:var(--sub);border-radius:10px;padding:10px;text-align:center;font-size:14px;font-weight:700;color:#fff">
+        ${formatNutritionDate(nutritionDate)}
+      </div>
+      <button onclick="changeNutritionDate(1)" style="background:var(--sub);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-size:18px;cursor:pointer;${nutritionDate>=todayStr()?"opacity:.3;pointer-events:none":""}">›</button>
+    </div>
     ${waterHtml}
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px">
@@ -1376,6 +1388,27 @@ async function saveGoals(){
   renderGoalsTab();
 }
 window.saveGoals=saveGoals;
+
+function formatNutritionDate(dateStr){
+  const d=new Date(dateStr+"T12:00:00");
+  const today=todayStr();
+  if(dateStr===today) return "Oggi · "+d.toLocaleDateString("it-IT",{weekday:"short",day:"2-digit",month:"short"});
+  const yesterday=new Date(); yesterday.setDate(yesterday.getDate()-1);
+  const yStr=yesterday.toISOString().slice(0,10);
+  if(dateStr===yStr) return "Ieri · "+d.toLocaleDateString("it-IT",{weekday:"short",day:"2-digit",month:"short"});
+  return d.toLocaleDateString("it-IT",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+}
+window.formatNutritionDate=formatNutritionDate;
+
+function changeNutritionDate(delta){
+  const d=new Date(nutritionDate+"T12:00:00");
+  d.setDate(d.getDate()+delta);
+  const newDate=d.toISOString().slice(0,10);
+  if(newDate>todayStr()) return; // no future dates
+  nutritionDate=newDate;
+  renderNutritionTab();
+}
+window.changeNutritionDate=changeNutritionDate;
 
 // ─── CUSTOM FOOD DATABASE ─────────────────────────────────────────────────────
 let _customFoods = [];  // loaded from Firestore
