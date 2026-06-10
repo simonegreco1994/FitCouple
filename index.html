@@ -2,6 +2,9 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>FitCouple 💪</title>
 <style>
@@ -196,7 +199,10 @@ input:focus{border-color:var(--accent)}
           <div class="header-sub">FitCouple</div>
         </div>
       </div>
-      <button class="btn-logout" onclick="logout()">Esci</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span id="version-indicator" title="Versione app" style="font-size:18px;cursor:default">⏳</span>
+        <button class="btn-logout" onclick="logout()">Esci</button>
+      </div>
     </div>
     <div id="tab-workouts" class="scroll-area" style="display:none"></div>
     <div id="tab-nutrition" class="scroll-area" style="display:none"></div>
@@ -598,19 +604,9 @@ function subscribeVersion(){
     if(!snap.exists()) return;
     const serverVer=snap.data().version;
     if(serverVer && serverVer!==APP_VERSION){
-      // Show persistent banner
-      let banner=document.getElementById("update-banner");
-      if(!banner){
-        banner=document.createElement("div");
-        banner.id="update-banner";
-        banner.style.cssText="position:fixed;top:0;left:0;right:0;background:var(--accent);color:#0a0a14;padding:10px 16px;text-align:center;font-weight:700;font-size:13px;z-index:9999;cursor:pointer";
-        banner.innerHTML="🆕 Versione "+serverVer+" disponibile — tocca per aggiornare";
-        banner.onclick=()=>location.reload(true);
-        document.body.appendChild(banner);
-      }
+      updateVersionIndicator(false);
     } else {
-      const banner=document.getElementById("update-banner");
-      if(banner) banner.remove();
+      updateVersionIndicator(true);
     }
   });
 }
@@ -1523,21 +1519,33 @@ window.saveGoals=saveGoals;
 // ── APP VERSION ───────────────────────────────────────────────────────────────
 const APP_VERSION="1.5.0";
 
-async function checkAppVersion(){
+function updateVersionIndicator(ok){
+  const ind=document.getElementById("version-indicator");
+  if(!ind) return;
+  if(ok===null){ ind.textContent="⏳"; ind.title="Verifica in corso…"; }
+  else if(ok){ ind.textContent="✅"; ind.title="App aggiornata (v"+APP_VERSION+")"; }
+  else { ind.textContent="❌"; ind.title="Aggiornamento disponibile! Chiudi e riapri l'app da Safari"; ind.style.cursor="pointer"; ind.onclick=()=>alert("Nuova versione disponibile!\nChiudi questa app e riaprila da Safari per aggiornarla.\nSe non funziona, rifai la condivisione su home da Safari."); }
+  // Update profile link too
   const el=document.getElementById("version-check");
-  if(!el) return;
+  if(el){
+    if(ok===null) el.textContent="v"+APP_VERSION+" · verifica…";
+    else if(ok) el.innerHTML='<span style="color:var(--green)">✅ v'+APP_VERSION+' · aggiornato</span>';
+    else el.innerHTML='<span style="color:var(--red)">❌ aggiornamento disponibile</span>';
+  }
+}
+
+async function checkAppVersion(){
+  updateVersionIndicator(null);
   try{
-    // Write current version to Firestore on load, read to compare
-    const vRef=doc(db,"appMeta","version");
-    const snap=await getDoc(vRef);
+    const snap=await getDoc(doc(db,"appMeta","version"));
     const serverVer=snap.exists()?snap.data().version:null;
     if(serverVer && serverVer!==APP_VERSION){
-      el.innerHTML=`<span style="color:var(--red);font-weight:700">⚠️ Versione ${serverVer} disponibile!</span> <a href="${location.href}" onclick="location.reload(true);return false;" style="color:var(--accent2)">Ricarica ora</a>`;
+      updateVersionIndicator(false);
     } else {
-      el.innerHTML=`<span style="color:var(--green)">✅ v${APP_VERSION} · aggiornato</span>`;
+      updateVersionIndicator(true);
     }
   }catch(e){
-    el.textContent="v"+APP_VERSION;
+    updateVersionIndicator(true); // assume ok if can't check
   }
 }
 window.checkAppVersion=checkAppVersion;
