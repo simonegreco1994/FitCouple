@@ -200,7 +200,7 @@ input:focus{border-color:var(--accent)}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <span id="version-indicator" title="Versione app" style="font-size:18px;cursor:default">⏳</span>
+        <span id="version-indicator" style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)"><span id="version-icon" style="font-size:16px">⏳</span><span id="version-text" style="font-weight:600">v1.5.0</span></span>
         <button class="btn-logout" onclick="logout()">Esci</button>
       </div>
     </div>
@@ -1517,20 +1517,30 @@ async function saveGoals(){
 window.saveGoals=saveGoals;
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.5.0";
+const APP_VERSION="1.6.0";
 
 function updateVersionIndicator(ok){
+  const icon=document.getElementById("version-icon");
+  const txt=document.getElementById("version-text");
   const ind=document.getElementById("version-indicator");
   if(!ind) return;
-  if(ok===null){ ind.textContent="⏳"; ind.title="Verifica in corso…"; }
-  else if(ok){ ind.textContent="✅"; ind.title="App aggiornata (v"+APP_VERSION+")"; }
-  else { ind.textContent="❌"; ind.title="Aggiornamento disponibile! Chiudi e riapri l'app da Safari"; ind.style.cursor="pointer"; ind.onclick=()=>alert("Nuova versione disponibile!\nChiudi questa app e riaprila da Safari per aggiornarla.\nSe non funziona, rifai la condivisione su home da Safari."); }
-  // Update profile link too
-  const el=document.getElementById("version-check");
-  if(el){
-    if(ok===null) el.textContent="v"+APP_VERSION+" · verifica…";
-    else if(ok) el.innerHTML='<span style="color:var(--green)">✅ v'+APP_VERSION+' · aggiornato</span>';
-    else el.innerHTML='<span style="color:var(--red)">❌ aggiornamento disponibile</span>';
+  if(ok===null){
+    if(icon) icon.textContent="⏳";
+    if(txt){txt.textContent="v"+APP_VERSION;txt.style.color="var(--muted)";}
+    ind.style.cursor="default";
+    ind.onclick=null;
+  } else if(ok){
+    if(icon) icon.textContent="✅";
+    if(txt){txt.textContent="v"+APP_VERSION;txt.style.color="var(--green)";}
+    ind.style.cursor="default";
+    ind.title="App aggiornata";
+    ind.onclick=null;
+  } else {
+    if(icon) icon.textContent="❌";
+    if(txt){txt.textContent="v"+APP_VERSION;txt.style.color="var(--red)";}
+    ind.style.cursor="pointer";
+    ind.title="Tocca per istruzioni aggiornamento";
+    ind.onclick=()=>alert("Nuova versione disponibile!\nChiudi questa app e riaprila da Safari.\nSe non funziona rifai la condivisione su Home da Safari.");
   }
 }
 
@@ -2361,7 +2371,7 @@ async function renderProfileTab(){
   el.innerHTML=`
     <h2 class="section-title" style="margin-bottom:4px">👤 ${esc(p.name||"Profilo")}</h2>
     <p style="color:var(--muted);font-size:13px;margin-bottom:4px">${CU.email}</p>
-    <p style="color:#555;font-size:11px;margin-bottom:16px">v1.4.0 · <span style="cursor:pointer;color:var(--accent2)" onclick="checkAppVersion()">Verifica aggiornamenti</span></p>
+    
 
     <!-- DATI FISICI -->
     <div class="card" style="margin-bottom:12px">
