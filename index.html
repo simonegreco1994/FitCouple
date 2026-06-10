@@ -972,6 +972,43 @@ async function renderNutritionTab(){
     const m=e.meal&&mealOrder.includes(e.meal)?e.meal:"Cena";
     byMeal[m].push(e);
   });
+  // ── SEMAFORO GIORNALIERO ──────────────────────────────────────────────────
+  function semaforo(val, target, isWater){
+    if(isWater){
+      if(val>=6) return {icon:"🟢", label:"Ottimo"};
+      if(val>=4) return {icon:"🟡", label:"Quasi"};
+      return {icon:"🔴", label:"Troppo poco"};
+    }
+    if(!target) return {icon:"⚪", label:"—"};
+    const pct=(val/target)*100;
+    if(pct>=90&&pct<=110) return {icon:"🟢", label:Math.round(pct)+"%"};
+    if(pct>=70&&pct<=130) return {icon:"🟡", label:Math.round(pct)+"%"};
+    return {icon:"🔴", label:Math.round(pct)+"%"};
+  }
+  const sKcal=semaforo(tot.kcal, g.kcal);
+  const sPro=semaforo(tot.protein, g.protein);
+  const sCarb=semaforo(tot.carbs, g.carbs);
+  const sFat=semaforo(tot.fat, g.fat);
+  const sWater=semaforo(waterGlasses2, 0, true);
+
+  const semaforoHtml=`<div class="card" style="margin-bottom:16px">
+    <div style="color:var(--accent);font-weight:700;font-size:14px;margin-bottom:12px">📊 Valutazione giornaliera</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center">
+      ${[
+        ["🔥","Kcal",sKcal],
+        ["💪","Prot.",sPro],
+        ["🌾","Carbo",sCarb],
+        ["🥑","Grassi",sFat],
+        ["💧","Acqua",sWater]
+      ].map(([ic,lab,s])=>`
+        <div style="background:var(--sub);border-radius:10px;padding:8px 4px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${ic} ${lab}</div>
+          <div style="font-size:22px;line-height:1">${s.icon}</div>
+          <div style="font-size:10px;margin-top:3px;color:${s.icon==="🟢"?"var(--green)":s.icon==="🟡"?"var(--orange)":"var(--red)"};font-weight:700">${s.label}</div>
+        </div>`).join("")}
+    </div>
+  </div>`;
+
   let eH=mealOrder.map(meal=>{
     const mEntries=byMeal[meal]||[];
     const mTot=mEntries.reduce((a,e)=>({kcal:a.kcal+(e.kcal||0),protein:a.protein+(e.protein||0),carbs:a.carbs+(e.carbs||0),fat:a.fat+(e.fat||0)}),{kcal:0,protein:0,carbs:0,fat:0});
@@ -1031,7 +1068,7 @@ async function renderNutritionTab(){
       ${mbar("Proteine",tot.protein,g.protein,"var(--accent2)")}
       ${mbar("Carboidrati",tot.carbs,g.carbs,"var(--orange)")}
       ${mbar("Grassi",tot.fat,g.fat,"var(--red)")}
-    </div>${eH}`;
+    </div>${semaforoHtml}${eH}`;
 }
 window.renderNutritionTab=renderNutritionTab;
 
@@ -1519,7 +1556,7 @@ async function saveGoals(){
 window.saveGoals=saveGoals;
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.6.0";
+const APP_VERSION="1.7.0";
 
 function updateVersionIndicator(ok){
   const icon=document.getElementById("version-icon");
