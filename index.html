@@ -1054,25 +1054,48 @@ window.selFoodByIdx=selFoodByIdx;
 
 function openFoodQtyModal(food){
   if(!food) return;
-  document.getElementById("fqm-title").textContent=food.name;
-  // Store base unit for correct calculation
   window._modalFood=food;
-  // Parse unit quantity (e.g. "5.2" from "5,2: ...")
   const unitMatch=(food.unit||"100g").match(/[\d,.]+/);
   const baseQty=unitMatch?Number(unitMatch[0].replace(",",".")):100;
   window._modalBaseQty=baseQty;
-  document.getElementById("fqm-meta").textContent="per "+food.unit+": "+food.kcal+" kcal · P "+food.protein+"g · C "+food.carbs+"g · G "+food.fat+"g";
-  document.getElementById("fqm-qty").value=baseQty;
-  document.getElementById("food-qty-modal").style.display="flex";
-  // Use requestAnimationFrame to ensure modal is painted before updating
-  requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
-      updateFoodQtyModal();
-      const inp=document.getElementById("fqm-qty");
-      if(inp) inp.focus();
-    });
-  });
+  // Build preview HTML immediately
+  const previewHtml=buildModalPreview(food,baseQty);
+  // Rewrite modal inner content entirely
+  const modal=document.getElementById("food-qty-modal");
+  modal.querySelector(".modal-inner").innerHTML=`
+    <div class="modal-header">
+      <span class="modal-title">${esc(food.name)}</span>
+      <button class="modal-close" onclick="closeFoodQtyModalForce()">✕</button>
+    </div>
+    <div class="modal-scroll">
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">per ${esc(food.unit||"100g")}: ${food.kcal} kcal · P ${food.protein}g · C ${food.carbs}g · G ${food.fat}g</p>
+      <div class="form-group">
+        <label class="form-label">Quantità (g / ml)</label>
+        <input type="number" id="fqm-qty" value="${baseQty}" min="1"
+          style="font-size:20px;font-weight:700;text-align:center"
+          oninput="updateFoodQtyModal()">
+      </div>
+      <div id="fqm-preview" style="margin-bottom:16px">${previewHtml}</div>
+      <button class="btn-primary" onclick="confirmFoodQtyModal()">✅ Aggiungi al diario</button>
+    </div>`;
+  modal.style.display="flex";
+  setTimeout(()=>{ const inp=document.getElementById("fqm-qty"); if(inp) inp.focus(); },100);
 }
+
+function buildModalPreview(food,qty){
+  const base=window._modalBaseQty||100;
+  const f=qty/base;
+  return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+    [["🔥 Kcal",Math.round(food.kcal*f),""],
+     ["💪 Proteine",r1(food.protein*f),"g"],
+     ["🌾 Carboidrati",r1(food.carbs*f),"g"],
+     ["🥑 Grassi",r1(food.fat*f),"g"]].map(function(x){
+      return '<div style="background:var(--sub);border-radius:10px;padding:10px;text-align:center">'+
+        '<div style="font-size:11px;color:var(--muted)">'+x[0]+'</div>'+
+        '<div style="font-size:18px;font-weight:900;color:#fff">'+x[1]+x[2]+'</div></div>';
+    }).join('')+'</div>';
+}
+window.buildModalPreview=buildModalPreview;
 window.openFoodQtyModal=openFoodQtyModal;
 
 function closeFoodQtyModal(e){ if(e.target===document.getElementById("food-qty-modal")) closeFoodQtyModalForce(); }
@@ -1091,21 +1114,9 @@ function updateFoodQtyModal(){
   const food=window._modalFood||selectedFood;
   if(!food) return;
   const qty=Number(document.getElementById("fqm-qty").value)||1;
-  // Scale relative to the base unit (e.g. 5.2g per biscotto)
-  const baseQty=window._modalBaseQty||100;
-  const f=qty/baseQty;
   const preview=document.getElementById("fqm-preview");
   if(!preview) return;
-  preview.innerHTML=
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-    [["🔥 Kcal",Math.round(food.kcal*f),""],
-     ["💪 Proteine",r1(food.protein*f),"g"],
-     ["🌾 Carboidrati",r1(food.carbs*f),"g"],
-     ["🥑 Grassi",r1(food.fat*f),"g"]].map(function(x){
-      return '<div style="background:var(--sub);border-radius:10px;padding:10px;text-align:center">'+
-        '<div style="font-size:11px;color:var(--muted)">'+x[0]+'</div>'+
-        '<div style="font-size:18px;font-weight:900;color:#fff">'+x[1]+x[2]+'</div></div>';
-    }).join('')+'</div>';
+  preview.innerHTML=buildModalPreview(food,qty);
 }
 window.updateFoodQtyModal=updateFoodQtyModal;
 
