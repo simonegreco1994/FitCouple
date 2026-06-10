@@ -932,7 +932,7 @@ async function renderNutritionTab(){
   el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
   let entries=[];
   let waterGlasses=0;
-  try{ entries=await getDiary(nutritionDate); }
+  try{ entries=await withTimeout(getDiary(nutritionDate)); }
   catch(e){
     console.error("Diary load error:",e);
     el.innerHTML=`<div class="section-header"><h2 class="section-title">Diario alimentare</h2><button class="btn-add" onclick="openFoodAdd()">+ Aggiungi</button></div>
@@ -1555,8 +1555,16 @@ async function saveGoals(){
 }
 window.saveGoals=saveGoals;
 
+// ─── FIRESTORE TIMEOUT WRAPPER ────────────────────────────────────────────────
+function withTimeout(promise, ms=8000){
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error("timeout")),ms))
+  ]);
+}
+
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.7.0";
+const APP_VERSION="1.1.1";
 
 function updateVersionIndicator(ok){
   const icon=document.getElementById("version-icon");
@@ -2137,7 +2145,7 @@ async function renderHistoryTab(){
   el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
   try{
     const q=query(collection(db,"sessions"),where("uid","==",CU.uid));
-    const snap=await getDocs(q);
+    const snap=await withTimeout(getDocs(q));
     let sessions=snap.docs.map(d=>({id:d.id,...d.data()}));
     // sort by date desc
     sessions.sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -2196,8 +2204,11 @@ async function renderHistoryTab(){
 
 
   }catch(e){
-    el.innerHTML=`<p class="empty">Errore nel caricamento. Riprova.</p>`;
-    console.error(e);
+    console.error("History load error:",e);
+    el.innerHTML=`<div style="text-align:center;margin-top:40px">
+      <p style="color:var(--muted);font-size:14px;margin-bottom:16px">${e.message==="timeout"?"Connessione lenta…":"Errore caricamento"}</p>
+      <button onclick="renderHistoryTab()" style="padding:10px 24px;background:var(--accent);color:#0a0a14;border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">🔄 Riprova</button>
+    </div>`;
   }
 }
 window.renderHistoryTab=renderHistoryTab;
@@ -2336,13 +2347,12 @@ window.deleteSession=deleteSession;
 
 // ─── PROFILE TAB ──────────────────────────────────────────────────────────────
 async function getFirestoreUsage(){
-  // Stima documenti: users(1) + workouts(n) + diary(n) + sessions(n)
-  let count=1; // user doc
+  let count=1;
   try{
-    const [wSnap,sSnap]=await Promise.all([
+    const [wSnap,sSnap]=await withTimeout(Promise.all([
       getDocs(query(collection(db,"workouts"),where("uid","==",CU.uid))),
       getDocs(query(collection(db,"sessions"),where("uid","==",CU.uid))),
-    ]);
+    ]));
     // diary docs: hard to count without extra query, estimate from sessions
     count += wSnap.size + sSnap.size;
     // Spark plan: 1GB storage, ~each doc ~1KB average
@@ -2397,7 +2407,8 @@ function calcMacros(tdee,goal,weight){
 async function renderProfileTab(){
   const el=document.getElementById("tab-profile");
   el.innerHTML=`<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:40px">Caricamento…</p>`;
-  const usage=await getFirestoreUsage();
+  let usage={workouts:0,sessions:0,totalDocs:1};
+  try{ usage=await withTimeout(getFirestoreUsage()); }catch(e){ console.warn('usage load:',e); }
   // Load body weight history
   const bwEntries=await loadBodyWeights();
   const bwChartHtml=await buildBWChartHtml(bwEntries);
