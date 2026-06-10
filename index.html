@@ -498,6 +498,8 @@ onAuthStateChanged(auth,async user=>{
     document.getElementById("hdr-avatar").textContent=profile.avatar||"💪";
     document.getElementById("hdr-name").textContent=profile.name||CU.email;
     subscribeWorkouts();
+    subscribeRecipes();
+    subscribeCustomFoods();
     showScreen("main");
     showTab("program");
   }else{
@@ -564,7 +566,11 @@ function showTab(tab){
   const gt=document.getElementById("tab-goals");
   if(gt) gt.style.display="none";
   if(tab==="workouts")renderWorkoutsTab();
-  else if(tab==="nutrition")renderNutritionTab();
+  else if(tab==="nutrition"){
+    renderNutritionTab();
+    // Setup diary realtime for current date
+    subscribeDiary();
+  }
   else if(tab==="goals"){document.getElementById("tab-goals").style.display="block";renderGoalsTab();}
   else if(tab==="history")renderHistoryTab();
   else if(tab==="profile")renderProfileTab();
@@ -578,7 +584,28 @@ function subscribeWorkouts(){
   unsubW=onSnapshot(q,snap=>{
     workouts=snap.docs.map(d=>({id:d.id,...d.data()}));
     const tab=document.getElementById("tab-workouts");
-    if(tab.style.display!=="none")renderWorkoutsTab();
+    if(tab&&tab.style.display!=="none")renderWorkoutsTab();
+  });
+}
+
+let unsubRecipes=null;
+function subscribeRecipes(){
+  if(unsubRecipes){unsubRecipes();unsubRecipes=null;}
+  unsubRecipes=onSnapshot(collection(db,"recipes"),snap=>{
+    window._sharedRecipes=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // Refresh recipes list if visible
+    const recList=document.getElementById("recipes-list");
+    if(recList&&document.getElementById("ftab-r")?.classList.contains("active")){
+      renderRecipesList();
+    }
+  });
+}
+
+let unsubCustomFoods=null;
+function subscribeCustomFoods(){
+  if(unsubCustomFoods){unsubCustomFoods();unsubCustomFoods=null;}
+  unsubCustomFoods=onSnapshot(doc(db,"customFoods","shared"),snap=>{
+    _customFoods=snap.exists()?(snap.data().foods||[]):[];
   });
 }
 
@@ -911,13 +938,50 @@ async function renderNutritionTab(){
   const tot=entries.reduce((a,e)=>({kcal:a.kcal+e.kcal,protein:a.protein+e.protein,carbs:a.carbs+e.carbs,fat:a.fat+e.fat}),{kcal:0,protein:0,carbs:0,fat:0});
   const kpct=Math.min((tot.kcal/g.kcal)*100,100);
   const kc=tot.kcal>g.kcal?"var(--red)":"var(--accent)";
-  const eH=entries.length?entries.map(e=>`
-    <div class="card"><div class="card-row">
-      <div style="flex:1"><div class="card-title">${esc(e.name)}</div>
-      <div class="card-sub">${Math.round(e.kcal)} kcal · P ${r1(e.protein)}g · C ${r1(e.carbs)}g · G ${r1(e.fat)}g</div></div>
-      <button class="btn-icon danger" onclick="rmFood('${e.id}')">🗑️</button>
-    </div></div>`).join("")
-    :`<p class="empty">Nessun alimento registrato.</p>`;
+  // Group entries by meal
+  const mealOrder=["Colazione","Spuntino","Pranzo","Merenda","Cena"];
+  const mealIcons={"Colazione":"🌅","Spuntino":"🍎","Pranzo":"☀️","Merenda":"🍊","Cena":"🌙","":"🍽️"};
+  let eH="";
+  if(!entries.length){
+    eH=`<p class="empty">Nessun alimento registrato.</p>`;
+  } else {
+    // Group by meal
+    const byMeal={};
+    entries.forEach(e=>{
+      const m=e.meal||"";
+      if(!byMeal[m]) byMeal[m]=[];
+      byMeal[m].push(e);
+    });
+    // Render each meal group
+    const groups=[...mealOrder.filter(m=>byMeal[m]), ...Object.keys(byMeal).filter(m=>!mealOrder.includes(m)&&byMeal[m])];
+    groups.forEach(meal=>{
+      const mEntries=byMeal[meal]||[];
+      const mTot=mEntries.reduce((a,e)=>({kcal:a.kcal+e.kcal,protein:a.protein+e.protein,carbs:a.carbs+e.carbs,fat:a.fat+e.fat}),{kcal:0,protein:0,carbs:0,fat:0});
+      const kPct=g.kcal?Math.round((mTot.kcal/g.kcal)*100):0;
+      const pPct=g.protein?Math.round((mTot.protein/g.protein)*100):0;
+      const cPct=g.carbs?Math.round((mTot.carbs/g.carbs)*100):0;
+      const fPct=g.fat?Math.round((mTot.fat/g.fat)*100):0;
+      eH+=`<div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:14px;font-weight:800;color:#fff">${mealIcons[meal]||"🍽️"} ${meal||"Altri"}</div>
+          <div style="font-size:11px;color:var(--muted)">${Math.round(mTot.kcal)} kcal
+            <span style="color:var(--accent2)"> P${r1(mTot.protein)}g</span>
+            <span style="color:var(--orange)"> C${r1(mTot.carbs)}g</span>
+            <span style="color:var(--red)"> G${r1(mTot.fat)}g</span>
+          </div>
+        </div>
+        <div style="height:3px;background:var(--sub);border-radius:2px;margin-bottom:8px">
+          <div style="height:100%;width:${Math.min(kPct,100)}%;background:var(--accent);border-radius:2px"></div>
+        </div>
+        ${mEntries.map(e=>`
+          <div class="card" style="margin-bottom:6px"><div class="card-row">
+            <div style="flex:1"><div class="card-title">${esc(e.name)}</div>
+            <div class="card-sub">${Math.round(e.kcal)} kcal · P ${r1(e.protein)}g · C ${r1(e.carbs)}g · G ${r1(e.fat)}g</div></div>
+            <button class="btn-icon danger" onclick="rmFood('${e.id}')">🗑️</button>
+          </div></div>`).join("")}
+      </div>`;
+    });
+  }
   el.innerHTML=`
     <div class="section-header">
       <h2 class="section-title">Diario alimentare</h2>
@@ -1096,6 +1160,16 @@ function openFoodQtyModal(food){
           oninput="updateFoodQtyModal()">
       </div>
       <div id="fqm-preview" style="margin-bottom:16px">${previewHtml}</div>
+      <div class="form-group">
+        <label class="form-label">Pasto</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px" id="meal-selector">
+          ${["🌅 Colazione","🍎 Spuntino","☀️ Pranzo","🍊 Merenda","🌙 Cena"].map((m,i)=>`
+            <button onclick="selectMeal(${i})" id="meal-btn-${i}"
+              style="padding:8px 4px;border-radius:10px;border:1px solid var(--border);background:var(--sub);color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s">
+              ${m}
+            </button>`).join("")}
+        </div>
+      </div>
       <button class="btn-primary" onclick="confirmFoodQtyModal()">✅ Aggiungi al diario</button>
     </div>`;
   modal.style.display="flex";
@@ -1116,6 +1190,20 @@ function buildModalPreview(food,qty){
     }).join('')+'</div>';
 }
 window.buildModalPreview=buildModalPreview;
+
+const MEAL_NAMES=["Colazione","Spuntino","Pranzo","Merenda","Cena"];
+const MEAL_ICONS=["🌅","🍎","☀️","🍊","🌙"];
+let _selectedMeal=0; // default: Colazione
+
+function selectMeal(idx){
+  _selectedMeal=idx;
+  document.querySelectorAll("[id^='meal-btn-']").forEach((b,i)=>{
+    b.style.background=i===idx?"var(--accent)":"var(--sub)";
+    b.style.color=i===idx?"#0a0a14":"var(--muted)";
+    b.style.borderColor=i===idx?"var(--accent)":"var(--border)";
+  });
+}
+window.selectMeal=selectMeal;
 window.openFoodQtyModal=openFoodQtyModal;
 
 function closeFoodQtyModal(e){ if(e.target===document.getElementById("food-qty-modal")) closeFoodQtyModalForce(); }
@@ -1146,17 +1234,15 @@ async function confirmFoodQtyModal(){
   const qty=Number(document.getElementById("fqm-qty").value)||1;
   const baseQty=window._modalBaseQty||100;
   const f=qty/baseQty;
-  if(food._recipeId){
-    await addRecipeToDiary(food._recipeId);
-  } else {
-    await _addEntry({
-      name:food.name+" ("+qty+(baseQty===1?"":"g")+")",
-      kcal:Math.round(food.kcal*f),
-      protein:r1(food.protein*f),
-      carbs:r1(food.carbs*f),
-      fat:r1(food.fat*f)
-    });
-  }
+  const meal=MEAL_NAMES[_selectedMeal||0];
+  await _addEntry({
+    name:food.name+" ("+qty+"g)",
+    kcal:Math.round(food.kcal*f),
+    protein:r1(food.protein*f),
+    carbs:r1(food.carbs*f),
+    fat:r1(food.fat*f),
+    meal:meal
+  });
   closeFoodQtyModalForce();
 }
 window.confirmFoodQtyModal=confirmFoodQtyModal;
@@ -1396,6 +1482,41 @@ async function saveGoals(){
   renderGoalsTab();
 }
 window.saveGoals=saveGoals;
+
+// ── APP VERSION ───────────────────────────────────────────────────────────────
+const APP_VERSION="1.4.0";
+
+async function checkAppVersion(){
+  const el=document.getElementById("version-check");
+  if(el) el.textContent="Controllo…";
+  try{
+    const r=await fetch(location.href+"?_="+Date.now(),{cache:"no-store"});
+    const txt=await r.text();
+    const match=txt.match(/const APP_VERSION="([^"]+)"/);
+    const serverVer=match?match[1]:null;
+    if(serverVer&&serverVer!==APP_VERSION){
+      if(el) el.innerHTML='<strong style="color:var(--red)">⚠️ Versione '+serverVer+' disponibile! Ricarica l\'app.</strong>';
+    } else {
+      if(el) el.textContent="✅ Sei aggiornato (v"+APP_VERSION+")";
+    }
+  }catch(e){
+    if(el) el.textContent="v"+APP_VERSION;
+  }
+}
+window.checkAppVersion=checkAppVersion;
+
+let unsubDiary=null;
+function subscribeDiary(){
+  if(unsubDiary){unsubDiary();unsubDiary=null;}
+  const diaryRef=doc(db,"diary",CU.uid+"_"+nutritionDate);
+  unsubDiary=onSnapshot(diaryRef,snap=>{
+    // Only re-render if nutrition tab is visible and not currently editing
+    const tab=document.getElementById("tab-nutrition");
+    if(tab&&tab.style.display!=="none"&&!document.getElementById("food-s")){
+      renderNutritionTab();
+    }
+  });
+}
 
 function formatNutritionDate(dateStr){
   const d=new Date(dateStr+"T12:00:00");
@@ -2187,7 +2308,8 @@ async function renderProfileTab(){
 
   el.innerHTML=`
     <h2 class="section-title" style="margin-bottom:4px">👤 ${esc(p.name||"Profilo")}</h2>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:16px">${CU.email}</p>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:4px">${CU.email}</p>
+    <p style="color:#555;font-size:11px;margin-bottom:16px">v1.4.0 · <span style="cursor:pointer;color:var(--accent2)" onclick="checkAppVersion()">Verifica aggiornamenti</span></p>
 
     <!-- DATI FISICI -->
     <div class="card" style="margin-bottom:12px">
@@ -2346,6 +2468,7 @@ window.renderRecipesList=renderRecipesList;
 
 async function openNewRecipe(){
   const el=document.getElementById("tab-nutrition");
+  window._editingRecipeId=null; // ensure no stale edit id
   // Ensure custom foods are loaded
   await loadCustomFoods();
   el.innerHTML=`
@@ -2400,6 +2523,13 @@ function renderRecipeIngredients(){
         <div style="flex:1"><label class="form-label">g / ml</label>
           <input type="number" value="${ing.qty}" min="1" oninput="setRecipeQty(${i},this.value)"
             style="border-radius:10px;padding:10px;font-size:13px"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
+          <label class="form-label" style="margin:0">Princ.</label>
+          <button onclick="toggleMainIng(${i})" id="main-btn-${i}"
+            style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:${ing.isMain?"var(--accent)":"var(--sub)"};color:${ing.isMain?"#0a0a14":"var(--muted)"};font-size:16px;cursor:pointer">
+            ⭐
+          </button>
+        </div>
         ${ingLine?'<div style="background:var(--sub);border-radius:10px;padding:8px;font-size:11px;color:var(--muted);flex:1;display:flex;align-items:center">'+ingLine+'</div>':""}
       </div>
     </div>`}).join("");
@@ -2536,6 +2666,17 @@ function setRecipeQty(i,val){
   if(infoEl) infoEl.textContent=calcIngLine(window._recipeIngredients[i]);
 }
 window.setRecipeQty=setRecipeQty;
+
+function toggleMainIng(i){
+  window._recipeIngredients[i].isMain=!window._recipeIngredients[i].isMain;
+  const btn=document.getElementById("main-btn-"+i);
+  if(btn){
+    const isMain=window._recipeIngredients[i].isMain;
+    btn.style.background=isMain?"var(--accent)":"var(--sub)";
+    btn.style.color=isMain?"#0a0a14":"var(--muted)";
+  }
+}
+window.toggleMainIng=toggleMainIng;
 function rmRecipeIng(i){window._recipeIngredients.splice(i,1);renderRecipeIngredients()}
 window.rmRecipeIng=rmRecipeIng;
 
@@ -2583,7 +2724,7 @@ async function saveRecipe(){
     name, portions,
     createdBy:profile.name||CU.email,
     createdAt:new Date().toISOString(),
-    ingredients:ings.map(i=>i.foodIdx>=0?{foodName:FOOD_DB[i.foodIdx].name,qty:i.qty}:{foodName:i.manualName,qty:i.qty,manual:true,kcal:i.manualKcal,protein:i.manualProtein,carbs:i.manualCarbs,fat:i.manualFat}),
+    ingredients:ings.map(i=>i.foodIdx>=0?{foodName:FOOD_DB[i.foodIdx].name,qty:i.qty,isMain:i.isMain||false}:{foodName:i.manualName,qty:i.qty,isMain:i.isMain||false,manual:true,kcal:i.manualKcal,protein:i.manualProtein,carbs:i.manualCarbs,fat:i.manualFat}),
     totals:{kcal:Math.round(tot.kcal),protein:Math.round(tot.protein*10)/10,carbs:Math.round(tot.carbs*10)/10,fat:Math.round(tot.fat*10)/10}
   };
   await addDoc(collection(db,"recipes"),recipe);
@@ -2600,19 +2741,42 @@ function addRecipeToDiary(id){
   const totalWeight=r.ingredients
     ? r.ingredients.reduce((s,i)=>s+(i.qty||100),0)
     : 100;
+  const mainIngs=(r.ingredients||[]).filter(i=>i.isMain);
+  // If main ingredients exist, calculate their sub-totals for scaling
+  let mainTotals=null;
+  if(mainIngs.length>0){
+    mainTotals={kcal:0,protein:0,carbs:0,fat:0,weight:0};
+    mainIngs.forEach(ing=>{
+      const f=FOOD_DB.find(x=>x.name===ing.foodName)||_customFoods.find(x=>x.name===ing.foodName);
+      if(f){
+        const r2=(ing.qty||100)/100;
+        mainTotals.kcal+=f.kcal*r2;
+        mainTotals.protein+=f.protein*r2;
+        mainTotals.carbs+=f.carbs*r2;
+        mainTotals.fat+=f.fat*r2;
+      }
+      mainTotals.weight+=(ing.qty||100);
+    });
+  }
+  // Food to show in modal: use main totals if available, else full recipe
+  const displayKcal=mainTotals?mainTotals.kcal:r.totals.kcal;
+  const displayProtein=mainTotals?mainTotals.protein:r.totals.protein;
+  const displayCarbs=mainTotals?mainTotals.carbs:r.totals.carbs;
+  const displayFat=mainTotals?mainTotals.fat:r.totals.fat;
+  const displayBase=mainTotals?mainTotals.weight:totalWeight;
   const recipeFood={
     name:r.name,
-    kcal:r.totals.kcal,
-    protein:r.totals.protein,
-    carbs:r.totals.carbs,
-    fat:r.totals.fat,
-    unit:totalWeight+"g (ricetta completa)",
+    kcal:displayKcal,
+    protein:displayProtein,
+    carbs:displayCarbs,
+    fat:displayFat,
+    unit:(mainTotals?"ingredienti principali ":"ricetta completa ")+displayBase+"g",
     _recipeId:id,
     _recipeWeight:totalWeight
   };
   // Set base to totalWeight so scaling works correctly
   window._modalFood=recipeFood;
-  window._modalBaseQty=totalWeight;
+  window._modalBaseQty=displayBase;
   const modal=document.getElementById("food-qty-modal");
   const previewHtml=buildModalPreview(recipeFood,totalWeight);
   modal.querySelector(".modal-inner").innerHTML=`
@@ -2622,6 +2786,7 @@ function addRecipeToDiary(id){
     </div>
     <div class="modal-scroll">
       <p style="color:var(--muted);font-size:12px;margin-bottom:4px">Ricetta completa: ${totalWeight}g → ${r.totals.kcal} kcal</p>
+      ${mainIngs.length>0?`<p style="color:var(--accent);font-size:11px;margin-bottom:4px">⭐ Scala su: ${mainIngs.map(i=>i.foodName).join(", ")}</p>`:""}
       <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Inserisci quanti grammi mangi tu</p>
       <div class="form-group">
         <label class="form-label">Grammatura (g)</label>
@@ -2644,7 +2809,7 @@ async function editRecipe(id){
   window._editingRecipeId=id;
   window._recipeIngredients=(r.ingredients||[]).map(ing=>{
     const dbIdx=FOOD_DB.findIndex(f=>f.name===ing.foodName);
-    if(dbIdx>=0) return {foodIdx:dbIdx,qty:ing.qty,manualName:null};
+    if(dbIdx>=0) return {foodIdx:dbIdx,qty:ing.qty,isMain:ing.isMain||false,manualName:null};
     // custom food
     const cf=_customFoods.find(f=>f.name===ing.foodName);
     return {foodIdx:-1,qty:ing.qty,manualName:ing.foodName,
