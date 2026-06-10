@@ -2822,12 +2822,12 @@ function addRecipeToDiary(id){
   };
   // Set base to totalWeight so scaling works correctly
   window._modalFood=recipeFood;
-  window._modalBaseQty=displayBase;
+  window._modalBaseQty=totalWeight; // use totalWeight so initial f=1
   window._modalMainIngs=mainIngs;
   window._modalRecipe=r;
   // Will call updateRecipeMainQty after modal opens
   const modal=document.getElementById("food-qty-modal");
-  const previewHtml=buildModalPreview(recipeFood,totalWeight);
+  const previewHtml=buildModalPreview({kcal:r.totals.kcal,protein:r.totals.protein,carbs:r.totals.carbs,fat:r.totals.fat},totalWeight);
   modal.querySelector(".modal-inner").innerHTML=`
     <div class="modal-header">
       <span class="modal-title">🍽️ ${esc(r.name)}</span>
@@ -2866,9 +2866,9 @@ function addRecipeToDiary(id){
       <button class="btn-primary" onclick="confirmFoodQtyModal()">✅ Aggiungi al diario</button>
     </div>`;
   modal.style.display="flex";
-  // Recalculate with default main ingredient quantities
+  // Recalculate with default main ingredient quantities after DOM is ready
   if(mainIngs.length>0){
-    requestAnimationFrame(()=>requestAnimationFrame(()=>updateRecipeMainQty()));
+    setTimeout(()=>updateRecipeMainQty(), 50);
   }
 }
 window.addRecipeToDiary=addRecipeToDiary;
