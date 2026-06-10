@@ -938,50 +938,45 @@ async function renderNutritionTab(){
   const tot=entries.reduce((a,e)=>({kcal:a.kcal+e.kcal,protein:a.protein+e.protein,carbs:a.carbs+e.carbs,fat:a.fat+e.fat}),{kcal:0,protein:0,carbs:0,fat:0});
   const kpct=Math.min((tot.kcal/g.kcal)*100,100);
   const kc=tot.kcal>g.kcal?"var(--red)":"var(--accent)";
-  // Group entries by meal
+  // Group entries by meal - always show all meals
   const mealOrder=["Colazione","Spuntino","Pranzo","Merenda","Cena"];
-  const mealIcons={"Colazione":"🌅","Spuntino":"🍎","Pranzo":"☀️","Merenda":"🍊","Cena":"🌙","":"🍽️"};
-  let eH="";
-  if(!entries.length){
-    eH=`<p class="empty">Nessun alimento registrato.</p>`;
-  } else {
-    // Group by meal
-    const byMeal={};
-    entries.forEach(e=>{
-      const m=e.meal||"";
-      if(!byMeal[m]) byMeal[m]=[];
-      byMeal[m].push(e);
-    });
-    // Render each meal group
-    const groups=[...mealOrder.filter(m=>byMeal[m]), ...Object.keys(byMeal).filter(m=>!mealOrder.includes(m)&&byMeal[m])];
-    groups.forEach(meal=>{
-      const mEntries=byMeal[meal]||[];
-      const mTot=mEntries.reduce((a,e)=>({kcal:a.kcal+e.kcal,protein:a.protein+e.protein,carbs:a.carbs+e.carbs,fat:a.fat+e.fat}),{kcal:0,protein:0,carbs:0,fat:0});
-      const kPct=g.kcal?Math.round((mTot.kcal/g.kcal)*100):0;
-      const pPct=g.protein?Math.round((mTot.protein/g.protein)*100):0;
-      const cPct=g.carbs?Math.round((mTot.carbs/g.carbs)*100):0;
-      const fPct=g.fat?Math.round((mTot.fat/g.fat)*100):0;
-      eH+=`<div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div style="font-size:14px;font-weight:800;color:#fff">${mealIcons[meal]||"🍽️"} ${meal||"Altri"}</div>
-          <div style="font-size:11px;color:var(--muted)">${Math.round(mTot.kcal)} kcal
-            <span style="color:var(--accent2)"> P${r1(mTot.protein)}g</span>
-            <span style="color:var(--orange)"> C${r1(mTot.carbs)}g</span>
-            <span style="color:var(--red)"> G${r1(mTot.fat)}g</span>
-          </div>
+  const mealIcons={"Colazione":"🌅","Spuntino":"🍎","Pranzo":"☀️","Merenda":"🍊","Cena":"🌙"};
+  const byMeal={};
+  mealOrder.forEach(m=>byMeal[m]=[]);
+  entries.forEach(e=>{
+    const m=e.meal&&mealOrder.includes(e.meal)?e.meal:"Cena";
+    byMeal[m].push(e);
+  });
+  let eH=mealOrder.map(meal=>{
+    const mEntries=byMeal[meal]||[];
+    const mTot=mEntries.reduce((a,e)=>({kcal:a.kcal+(e.kcal||0),protein:a.protein+(e.protein||0),carbs:a.carbs+(e.carbs||0),fat:a.fat+(e.fat||0)}),{kcal:0,protein:0,carbs:0,fat:0});
+    const kPct=g.kcal?Math.min(Math.round((mTot.kcal/g.kcal)*100),100):0;
+    const kColor=kPct>100?"var(--red)":kPct>0?"var(--accent)":"var(--border)";
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:14px;font-weight:800;color:#fff">${mealIcons[meal]} ${meal}</div>
+        <div style="font-size:11px">
+          ${mTot.kcal>0
+            ?`<span style="color:var(--accent);font-weight:700">${Math.round(mTot.kcal)} kcal</span>
+              <span style="color:#555"> (${kPct}%)</span>
+              <span style="color:var(--accent2);margin-left:4px">P${r1(mTot.protein)}g</span>
+              <span style="color:var(--orange);margin-left:4px">C${r1(mTot.carbs)}g</span>
+              <span style="color:var(--red);margin-left:4px">G${r1(mTot.fat)}g</span>`
+            :`<span style="color:#555">—</span>`}
         </div>
-        <div style="height:3px;background:var(--sub);border-radius:2px;margin-bottom:8px">
-          <div style="height:100%;width:${Math.min(kPct,100)}%;background:var(--accent);border-radius:2px"></div>
-        </div>
-        ${mEntries.map(e=>`
-          <div class="card" style="margin-bottom:6px"><div class="card-row">
-            <div style="flex:1"><div class="card-title">${esc(e.name)}</div>
-            <div class="card-sub">${Math.round(e.kcal)} kcal · P ${r1(e.protein)}g · C ${r1(e.carbs)}g · G ${r1(e.fat)}g</div></div>
-            <button class="btn-icon danger" onclick="rmFood('${e.id}')">🗑️</button>
-          </div></div>`).join("")}
-      </div>`;
-    });
-  }
+      </div>
+      <div style="height:3px;background:var(--sub);border-radius:2px;margin-bottom:8px">
+        <div style="height:100%;width:${kPct}%;background:${kColor};border-radius:2px;transition:width .4s"></div>
+      </div>
+      ${mEntries.length?mEntries.map(e=>`
+        <div class="card" style="margin-bottom:6px"><div class="card-row">
+          <div style="flex:1"><div class="card-title">${esc(e.name)}</div>
+          <div class="card-sub">${Math.round(e.kcal)} kcal · P ${r1(e.protein)}g · C ${r1(e.carbs)}g · G ${r1(e.fat)}g</div></div>
+          <button class="btn-icon danger" onclick="rmFood('${e.id}')">🗑️</button>
+        </div></div>`).join("")
+        :`<div style="color:#555;font-size:12px;padding:6px 0;text-align:center">Nessun alimento</div>`}
+    </div>`;
+  }).join("");
   el.innerHTML=`
     <div class="section-header">
       <h2 class="section-title">Diario alimentare</h2>
@@ -1231,18 +1226,33 @@ window.updateFoodQtyModal=updateFoodQtyModal;
 async function confirmFoodQtyModal(){
   const food=window._modalFood||selectedFood;
   if(!food) return;
-  const qty=Number(document.getElementById("fqm-qty").value)||1;
-  const baseQty=window._modalBaseQty||100;
-  const f=qty/baseQty;
   const meal=MEAL_NAMES[_selectedMeal||0];
-  await _addEntry({
-    name:food.name+" ("+qty+"g)",
-    kcal:Math.round(food.kcal*f),
-    protein:r1(food.protein*f),
-    carbs:r1(food.carbs*f),
-    fat:r1(food.fat*f),
-    meal:meal
-  });
+  const mainIngs=window._modalMainIngs||[];
+  if(mainIngs.length>0){
+    // Use pre-calculated values from updateRecipeMainQty
+    await _addEntry({
+      name:food.name,
+      kcal:Math.round(food.kcal),
+      protein:r1(food.protein),
+      carbs:r1(food.carbs),
+      fat:r1(food.fat),
+      meal:meal
+    });
+  } else {
+    const qty=Number((document.getElementById("fqm-qty")||{}).value)||1;
+    const baseQty=window._modalBaseQty||100;
+    const f=qty/baseQty;
+    await _addEntry({
+      name:food.name+" ("+qty+"g)",
+      kcal:Math.round(food.kcal*f),
+      protein:r1(food.protein*f),
+      carbs:r1(food.carbs*f),
+      fat:r1(food.fat*f),
+      meal:meal
+    });
+  }
+  window._modalMainIngs=null;
+  window._modalRecipe=null;
   closeFoodQtyModalForce();
 }
 window.confirmFoodQtyModal=confirmFoodQtyModal;
@@ -1486,22 +1496,9 @@ window.saveGoals=saveGoals;
 // ── APP VERSION ───────────────────────────────────────────────────────────────
 const APP_VERSION="1.4.0";
 
-async function checkAppVersion(){
+function checkAppVersion(){
   const el=document.getElementById("version-check");
-  if(el) el.textContent="Controllo…";
-  try{
-    const r=await fetch(location.href+"?_="+Date.now(),{cache:"no-store"});
-    const txt=await r.text();
-    const match=txt.match(/const APP_VERSION="([^"]+)"/);
-    const serverVer=match?match[1]:null;
-    if(serverVer&&serverVer!==APP_VERSION){
-      if(el) el.innerHTML='<strong style="color:var(--red)">⚠️ Versione '+serverVer+' disponibile! Ricarica l\'app.</strong>';
-    } else {
-      if(el) el.textContent="✅ Sei aggiornato (v"+APP_VERSION+")";
-    }
-  }catch(e){
-    if(el) el.textContent="v"+APP_VERSION;
-  }
+  if(el) el.innerHTML='v'+APP_VERSION+' · <a href="'+location.href+'" onclick="location.reload(true);return false;" style="color:var(--accent2)">Ricarica app</a>';
 }
 window.checkAppVersion=checkAppVersion;
 
@@ -2677,6 +2674,33 @@ function toggleMainIng(i){
   }
 }
 window.toggleMainIng=toggleMainIng;
+
+function updateRecipeMainQty(){
+  const mainIngs=window._modalMainIngs||[];
+  if(!mainIngs.length) return;
+  const r=window._modalRecipe;
+  if(!r) return;
+  // Recalculate totals based on new main ingredient quantities
+  let tot={kcal:0,protein:0,carbs:0,fat:0};
+  mainIngs.forEach((ing,mi)=>{
+    const inp=document.getElementById("main-qty-"+mi);
+    const qty=inp?Number(inp.value)||0:ing.qty;
+    const food=getAllFoods().find(f=>f.name===ing.foodName);
+    if(food){
+      const f=qty/100;
+      tot.kcal+=food.kcal*f;
+      tot.protein+=food.protein*f;
+      tot.carbs+=food.carbs*f;
+      tot.fat+=food.fat*f;
+    }
+  });
+  const prev=document.getElementById("fqm-preview");
+  if(prev) prev.innerHTML=buildModalPreview({kcal:tot.kcal,protein:tot.protein,carbs:tot.carbs,fat:tot.fat},1);
+  // Update modal food for confirm
+  window._modalFood={...window._modalFood,kcal:tot.kcal,protein:tot.protein,carbs:tot.carbs,fat:tot.fat};
+  window._modalBaseQty=1;
+}
+window.updateRecipeMainQty=updateRecipeMainQty;
 function rmRecipeIng(i){window._recipeIngredients.splice(i,1);renderRecipeIngredients()}
 window.rmRecipeIng=rmRecipeIng;
 
@@ -2723,15 +2747,26 @@ async function saveRecipe(){
   const recipe={
     name, portions,
     createdBy:profile.name||CU.email,
-    createdAt:new Date().toISOString(),
-    ingredients:ings.map(i=>i.foodIdx>=0?{foodName:FOOD_DB[i.foodIdx].name,qty:i.qty,isMain:i.isMain||false}:{foodName:i.manualName,qty:i.qty,isMain:i.isMain||false,manual:true,kcal:i.manualKcal,protein:i.manualProtein,carbs:i.manualCarbs,fat:i.manualFat}),
+    updatedAt:new Date().toISOString(),
+    ingredients:ings.map(i=>i.foodIdx>=0
+      ?{foodName:FOOD_DB[i.foodIdx].name,qty:i.qty,isMain:i.isMain||false}
+      :{foodName:i.manualName,qty:i.qty,isMain:i.isMain||false,manual:true,kcal:i.manualKcal,protein:i.manualProtein,carbs:i.manualCarbs,fat:i.manualFat}),
     totals:{kcal:Math.round(tot.kcal),protein:Math.round(tot.protein*10)/10,carbs:Math.round(tot.carbs*10)/10,fat:Math.round(tot.fat*10)/10}
   };
-  await addDoc(collection(db,"recipes"),recipe);
-  toast("✓ Ricetta salvata e condivisa!");
+  const editId=window._editingRecipeId||null;
+  if(editId){
+    recipe.createdAt=(window._sharedRecipes.find(r=>r.id===editId)||{}).createdAt||new Date().toISOString();
+    await setDoc(doc(db,"recipes",editId),recipe);
+    toast("✓ Ricetta aggiornata!");
+  } else {
+    recipe.createdAt=new Date().toISOString();
+    await addDoc(collection(db,"recipes"),recipe);
+    toast("✓ Ricetta salvata e condivisa!");
+  }
+  window._editingRecipeId=null;
   openFoodAdd();
 }
-window.saveRecipe=saveRecipe;
+window.saveRecipe=saveRecipe;;
 
 function addRecipeToDiary(id){
   const r=window._sharedRecipes.find(x=>x.id===id);
@@ -2777,6 +2812,8 @@ function addRecipeToDiary(id){
   // Set base to totalWeight so scaling works correctly
   window._modalFood=recipeFood;
   window._modalBaseQty=displayBase;
+  window._modalMainIngs=mainIngs;
+  window._modalRecipe=r;
   const modal=document.getElementById("food-qty-modal");
   const previewHtml=buildModalPreview(recipeFood,totalWeight);
   modal.querySelector(".modal-inner").innerHTML=`
@@ -2785,16 +2822,35 @@ function addRecipeToDiary(id){
       <button class="modal-close" onclick="closeFoodQtyModalForce()">✕</button>
     </div>
     <div class="modal-scroll">
-      <p style="color:var(--muted);font-size:12px;margin-bottom:4px">Ricetta completa: ${totalWeight}g → ${r.totals.kcal} kcal</p>
-      ${mainIngs.length>0?`<p style="color:var(--accent);font-size:11px;margin-bottom:4px">⭐ Scala su: ${mainIngs.map(i=>i.foodName).join(", ")}</p>`:""}
-      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Inserisci quanti grammi mangi tu</p>
-      <div class="form-group">
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px">Ricetta completa: ${totalWeight}g · ${Math.round(r.totals.kcal)} kcal</p>
+      ${mainIngs.length>0?`
+      <div style="background:var(--sub);border-radius:12px;padding:12px;margin-bottom:14px">
+        <p style="color:var(--accent);font-size:12px;font-weight:700;margin-bottom:10px">⭐ Modifica grammature principali</p>
+        ${mainIngs.map((ing,mi)=>`
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span style="flex:1;font-size:13px;color:#fff">${esc(ing.foodName)}</span>
+            <input type="number" id="main-qty-${mi}" value="${ing.qty}" min="1"
+              oninput="updateRecipeMainQty()"
+              style="width:80px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--accent);font-size:14px;font-weight:700;font-family:inherit;outline:none;text-align:center">
+            <span style="color:var(--muted);font-size:12px">g</span>
+          </div>`).join("")}
+      </div>
+      <div id="fqm-preview" style="margin-bottom:14px">${previewHtml}</div>`
+      :`<div class="form-group">
         <label class="form-label">Grammatura (g)</label>
         <input type="number" id="fqm-qty" value="${totalWeight}" min="1"
           style="font-size:20px;font-weight:700;text-align:center"
           oninput="updateFoodQtyModal()">
       </div>
-      <div id="fqm-preview" style="margin-bottom:16px">${previewHtml}</div>
+      <div id="fqm-preview" style="margin-bottom:16px">${previewHtml}</div>`}
+      <div class="form-group" style="margin-top:14px">
+        <label class="form-label">Pasto</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          ${ ["🌅 Colazione","🍎 Spuntino","☀️ Pranzo","🍊 Merenda","🌙 Cena"].map((m,i)=>
+            '<button onclick="selectMeal('+i+')" id="meal-btn-'+i+'" style="padding:8px 4px;border-radius:10px;border:1px solid var(--border);background:var(--sub);color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit">'+m+'</button>'
+          ).join("") }
+        </div>
+      </div>
       <button class="btn-primary" onclick="confirmFoodQtyModal()">✅ Aggiungi al diario</button>
     </div>`;
   modal.style.display="flex";
