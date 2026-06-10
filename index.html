@@ -2335,6 +2335,7 @@ function renderRecipesList(){
           <div class="card-sub" style="margin-top:2px;color:#555">Creata da ${esc(r.createdBy||"")}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn-icon" onclick="editRecipe('${r.id}')">✏️</button>
           <button class="btn-icon success" onclick="addRecipeToDiary('${r.id}')">+</button>
           <button class="btn-icon danger" onclick="deleteRecipe('${r.id}')">🗑️</button>
         </div>
@@ -2526,7 +2527,14 @@ function setRFoodMacro(i,j,val){
   updateRecipeTotals();
 }
 window.setRFoodMacro=setRFoodMacro;
-function setRecipeQty(i,val){window._recipeIngredients[i].qty=Number(val)||0;renderRecipeIngredients()}
+function setRecipeQty(i,val){
+  window._recipeIngredients[i].qty=Number(val)||0;
+  // Only update totals, don't re-render (would lose focus)
+  updateRecipeTotals();
+  // Update the inline macro display for this ingredient
+  const infoEl=document.getElementById("ing-info-"+i);
+  if(infoEl) infoEl.textContent=calcIngLine(window._recipeIngredients[i]);
+}
 window.setRecipeQty=setRecipeQty;
 function rmRecipeIng(i){window._recipeIngredients.splice(i,1);renderRecipeIngredients()}
 window.rmRecipeIng=rmRecipeIng;
@@ -2584,20 +2592,90 @@ async function saveRecipe(){
 }
 window.saveRecipe=saveRecipe;
 
-async function addRecipeToDiary(id){
+function addRecipeToDiary(id){
   const r=window._sharedRecipes.find(x=>x.id===id);
   if(!r) return;
-  const portions=r.portions||1;
-  await _addEntry({
-    name:`${r.name} (1/${portions} porzione)`,
-    kcal:Math.round(r.totals.kcal/portions),
-    protein:Math.round(r.totals.protein/portions*10)/10,
-    carbs:Math.round(r.totals.carbs/portions*10)/10,
-    fat:Math.round(r.totals.fat/portions*10)/10
-  });
-  toast("✓ Ricetta aggiunta al diario!");
+  // Open qty modal with recipe totals
+  // totalWeight = sum of all ingredient quantities
+  const totalWeight=r.ingredients
+    ? r.ingredients.reduce((s,i)=>s+(i.qty||100),0)
+    : 100;
+  const recipeFood={
+    name:r.name,
+    kcal:r.totals.kcal,
+    protein:r.totals.protein,
+    carbs:r.totals.carbs,
+    fat:r.totals.fat,
+    unit:totalWeight+"g (ricetta completa)",
+    _recipeId:id,
+    _recipeWeight:totalWeight
+  };
+  // Set base to totalWeight so scaling works correctly
+  window._modalFood=recipeFood;
+  window._modalBaseQty=totalWeight;
+  const modal=document.getElementById("food-qty-modal");
+  const previewHtml=buildModalPreview(recipeFood,totalWeight);
+  modal.querySelector(".modal-inner").innerHTML=`
+    <div class="modal-header">
+      <span class="modal-title">🍽️ ${esc(r.name)}</span>
+      <button class="modal-close" onclick="closeFoodQtyModalForce()">✕</button>
+    </div>
+    <div class="modal-scroll">
+      <p style="color:var(--muted);font-size:12px;margin-bottom:4px">Ricetta completa: ${totalWeight}g → ${r.totals.kcal} kcal</p>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Inserisci quanti grammi mangi tu</p>
+      <div class="form-group">
+        <label class="form-label">Grammatura (g)</label>
+        <input type="number" id="fqm-qty" value="${totalWeight}" min="1"
+          style="font-size:20px;font-weight:700;text-align:center"
+          oninput="updateFoodQtyModal()">
+      </div>
+      <div id="fqm-preview" style="margin-bottom:16px">${previewHtml}</div>
+      <button class="btn-primary" onclick="confirmFoodQtyModal()">✅ Aggiungi al diario</button>
+    </div>`;
+  modal.style.display="flex";
 }
 window.addRecipeToDiary=addRecipeToDiary;
+
+async function editRecipe(id){
+  const r=window._sharedRecipes.find(x=>x.id===id);
+  if(!r) return;
+  await loadCustomFoods();
+  const el=document.getElementById("tab-nutrition");
+  window._editingRecipeId=id;
+  window._recipeIngredients=(r.ingredients||[]).map(ing=>{
+    const dbIdx=FOOD_DB.findIndex(f=>f.name===ing.foodName);
+    if(dbIdx>=0) return {foodIdx:dbIdx,qty:ing.qty,manualName:null};
+    // custom food
+    const cf=_customFoods.find(f=>f.name===ing.foodName);
+    return {foodIdx:-1,qty:ing.qty,manualName:ing.foodName,
+      manualKcal:cf?cf.kcal:(ing.kcal||0),
+      manualProtein:cf?cf.protein:(ing.protein||0),
+      manualCarbs:cf?cf.carbs:(ing.carbs||0),
+      manualFat:cf?cf.fat:(ing.fat||0)};
+  });
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <button class="btn-back" onclick="openFoodAdd()">← Indietro</button>
+      <h2 class="section-title" style="margin:0">Modifica ricetta</h2>
+    </div>
+    <div class="form-group"><label class="form-label">Nome ricetta</label>
+      <input type="text" id="rec-name" value="${esc(r.name)}" placeholder="Es. Pasta al tonno…"></div>
+    <div class="form-group"><label class="form-label">Porzioni</label>
+      <input type="number" id="rec-portions" value="${r.portions||1}" min="1"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="color:var(--accent);font-weight:700;font-size:14px">Ingredienti</span>
+      <button class="btn-add" onclick="addRecipeIngredient()">+ Aggiungi</button>
+    </div>
+    <div id="rec-ingredients"></div>
+    <div id="rec-totals" class="card" style="margin-bottom:12px;display:none">
+      <div style="color:var(--accent);font-weight:700;margin-bottom:8px">📊 Totali ricetta</div>
+      <div id="rec-totals-content"></div>
+    </div>
+    <button class="btn-primary" onclick="saveRecipe()">💾 Salva modifiche</button>`;
+  renderRecipeIngredients();
+  updateRecipeTotals();
+}
+window.editRecipe=editRecipe;
 
 async function deleteRecipe(id){
   if(!confirm("Eliminare questa ricetta?")) return;
