@@ -559,16 +559,17 @@ async function authSubmit(){
       // Determine coupleId
       let coupleId=cred.user.uid; // default: solo
       if(partnerEmail){
-        // Search for existing user who listed this email as partner
-        const usersSnap=await getDocs(query(collection(db,"users"),where("partnerEmail","==",email.toLowerCase())));
-        if(!usersSnap.empty){
-          // Partner already registered - use their coupleId
-          const partnerData=usersSnap.docs[0].data();
-          coupleId=partnerData.coupleId||usersSnap.docs[0].id;
+        // Check coupleLinks for partner's existing coupleId
+        const linkRef=doc(db,"coupleLinks",partnerEmail.replace("@","_").replace(/\./g,"_"));
+        const linkSnap=await getDoc(linkRef);
+        if(linkSnap.exists()&&linkSnap.data().coupleId){
+          coupleId=linkSnap.data().coupleId;
         } else {
-          // First of the couple - generate new coupleId
           coupleId=uid()+uid();
         }
+        // Register our email→coupleId mapping
+        const myLinkRef=doc(db,"coupleLinks",email.toLowerCase().replace("@","_").replace(/\./g,"_"));
+        await setDoc(myLinkRef,{email:email.toLowerCase(),coupleId,partnerEmail});
       }
       await setDoc(doc(db,"users",cred.user.uid),{
         name,avatar:selAvatar,
@@ -1593,28 +1594,32 @@ async function linkPartner(){
   if(!partnerEmail){alert("Inserisci l'email del partner");return}
   if(partnerEmail===CU.email.toLowerCase()){alert("Non puoi collegare te stesso!");return}
   try{
-    // Check if partner is already registered
-    const usersSnap=await getDocs(query(collection(db,"users"),where("partnerEmail","==",CU.email.toLowerCase())));
+    // Look up partner's coupleId via dedicated index doc (no full collection scan)
     let coupleId;
-    if(!usersSnap.empty){
-      // Partner already declared us - use their coupleId
-      const partnerData=usersSnap.docs[0].data();
-      coupleId=partnerData.coupleId||usersSnap.docs[0].id;
+    const linkRef=doc(db,"coupleLinks",partnerEmail.replace("@","_").replace(".","_"));
+    const linkSnap=await getDoc(linkRef);
+    if(linkSnap.exists()&&linkSnap.data().coupleId){
+      // Partner already created a coupleId - join it
+      coupleId=linkSnap.data().coupleId;
     } else {
-      // Generate new coupleId - partner will pick it up when they register/link
+      // We're first - generate coupleId and register it
       coupleId=uid()+uid();
     }
+    // Register our own email→coupleId mapping
+    const myLinkRef=doc(db,"coupleLinks",CU.email.toLowerCase().replace("@","_").replace(".","_"));
+    await setDoc(myLinkRef,{email:CU.email.toLowerCase(),coupleId,partnerEmail});
     // Update our profile
     profile.partnerEmail=partnerEmail;
     profile.coupleId=coupleId;
     window._coupleId=coupleId;
     await setDoc(doc(db,"users",CU.uid),profile,{merge:true});
-    // Migrate existing recipes and custom foods to new coupleId
+    // Migrate existing data to coupleId
     await migrateDataToCoupleId(coupleId);
-    toast("✓ Partner collegato!");
+    toast("✓ Partner collegato! Ora condividete ricette e alimenti.");
     renderProfileTab();
   }catch(e){
     alert("Errore: "+e.message);
+    console.error(e);
   }
 }
 window.linkPartner=linkPartner;
@@ -1665,7 +1670,7 @@ function withTimeout(promise, ms=8000){
 }
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.9.0";
+const APP_VERSION="1.9.1";
 
 function updateVersionIndicator(ok){
   const icon=document.getElementById("version-icon");
