@@ -1668,7 +1668,7 @@ function withTimeout(promise, ms=8000){
 }
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.9.2";
+const APP_VERSION="1.9.3";
 
 function updateVersionIndicator(ok){
   const icon=document.getElementById("version-icon");
@@ -2817,7 +2817,7 @@ function renderRecipeIngredients(){
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
           <label class="form-label" style="margin:0">Princ.</label>
           <button onclick="toggleMainIng(${i})" id="main-btn-${i}"
-            style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:${ing.isMain?"var(--accent)":"var(--sub)"};color:${ing.isMain?"#0a0a14":"var(--muted)"};font-size:16px;cursor:pointer">
+            style="width:36px;height:36px;border-radius:8px;border:2px solid ${ing.isMain?"#e8ff47":"var(--border)"};background:${ing.isMain?"#e8ff47":"var(--sub)"};color:${ing.isMain?"#0a0a14":"#555"};font-size:16px;cursor:pointer;transition:all .15s">
             ⭐
           </button>
         </div>
