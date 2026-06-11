@@ -174,6 +174,11 @@ input:focus{border-color:var(--accent)}
           <label class="form-label">Avatar</label>
           <div class="avatar-picker" id="avatar-picker"></div>
         </div>
+        <div class="form-group">
+          <label class="form-label">Email partner (opzionale)</label>
+          <input type="email" id="reg-partner" placeholder="partner@email.com">
+          <p style="color:#555;font-size:11px;margin-top:4px">Lascia vuoto se usi l'app da solo</p>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Email</label>
@@ -501,6 +506,12 @@ onAuthStateChanged(auth,async user=>{
     CU=user;
     const snap=await getDoc(doc(db,"users",CU.uid));
     profile=snap.exists()?snap.data():{name:CU.email,avatar:"💪",goals:{kcal:2000,protein:150,carbs:200,fat:65}};
+    // Ensure coupleId exists - backward compat for existing users
+    if(!profile.coupleId){
+      profile.coupleId=CU.uid;
+      await setDoc(doc(db,"users",CU.uid),{coupleId:CU.uid},{merge:true});
+    }
+    window._coupleId=profile.coupleId;
     document.getElementById("hdr-avatar").textContent=profile.avatar||"💪";
     document.getElementById("hdr-name").textContent=profile.name||CU.email;
     subscribeWorkouts();
@@ -543,8 +554,28 @@ async function authSubmit(){
     }else{
       const name=document.getElementById("reg-name").value.trim();
       if(!name){showAuthErr("Inserisci il tuo nome.");btn.disabled=false;btn.textContent="Crea profilo";return}
+      const partnerEmail=(document.getElementById("reg-partner").value||"").trim().toLowerCase();
       const cred=await createUserWithEmailAndPassword(auth,email,pwd);
-      await setDoc(doc(db,"users",cred.user.uid),{name,avatar:selAvatar,goals:{kcal:2000,protein:150,carbs:200,fat:65}});
+      // Determine coupleId
+      let coupleId=cred.user.uid; // default: solo
+      if(partnerEmail){
+        // Search for existing user who listed this email as partner
+        const usersSnap=await getDocs(query(collection(db,"users"),where("partnerEmail","==",email.toLowerCase())));
+        if(!usersSnap.empty){
+          // Partner already registered - use their coupleId
+          const partnerData=usersSnap.docs[0].data();
+          coupleId=partnerData.coupleId||usersSnap.docs[0].id;
+        } else {
+          // First of the couple - generate new coupleId
+          coupleId=uid()+uid();
+        }
+      }
+      await setDoc(doc(db,"users",cred.user.uid),{
+        name,avatar:selAvatar,
+        goals:{kcal:2000,protein:150,carbs:200,fat:65},
+        partnerEmail:partnerEmail||null,
+        coupleId:coupleId
+      });
     }
   }catch(e){
     const msgs={"auth/invalid-credential":"Email o password errati.","auth/email-already-in-use":"Email già registrata.","auth/weak-password":"Password troppo corta (min 6).","auth/invalid-email":"Email non valida."};
@@ -616,7 +647,8 @@ function subscribeVersion(){
 let unsubRecipes=null;
 function subscribeRecipes(){
   if(unsubRecipes){unsubRecipes();unsubRecipes=null;}
-  unsubRecipes=onSnapshot(collection(db,"recipes"),snap=>{
+  const cid=window._coupleId||CU.uid;
+  unsubRecipes=onSnapshot(query(collection(db,"recipes"),where("coupleId","==",cid)),snap=>{
     window._sharedRecipes=snap.docs.map(d=>({id:d.id,...d.data()}));
     // Refresh recipes list if visible
     const recList=document.getElementById("recipes-list");
@@ -629,7 +661,8 @@ function subscribeRecipes(){
 let unsubCustomFoods=null;
 function subscribeCustomFoods(){
   if(unsubCustomFoods){unsubCustomFoods();unsubCustomFoods=null;}
-  unsubCustomFoods=onSnapshot(doc(db,"customFoods","shared"),snap=>{
+  const ccid=window._coupleId||CU.uid;
+  unsubCustomFoods=onSnapshot(doc(db,"customFoods",ccid),snap=>{
     _customFoods=snap.exists()?(snap.data().foods||[]):[];
   });
 }
@@ -1555,6 +1588,74 @@ async function saveGoals(){
 }
 window.saveGoals=saveGoals;
 
+async function linkPartner(){
+  const partnerEmail=(document.getElementById("link-partner-email").value||"").trim().toLowerCase();
+  if(!partnerEmail){alert("Inserisci l'email del partner");return}
+  if(partnerEmail===CU.email.toLowerCase()){alert("Non puoi collegare te stesso!");return}
+  try{
+    // Check if partner is already registered
+    const usersSnap=await getDocs(query(collection(db,"users"),where("partnerEmail","==",CU.email.toLowerCase())));
+    let coupleId;
+    if(!usersSnap.empty){
+      // Partner already declared us - use their coupleId
+      const partnerData=usersSnap.docs[0].data();
+      coupleId=partnerData.coupleId||usersSnap.docs[0].id;
+    } else {
+      // Generate new coupleId - partner will pick it up when they register/link
+      coupleId=uid()+uid();
+    }
+    // Update our profile
+    profile.partnerEmail=partnerEmail;
+    profile.coupleId=coupleId;
+    window._coupleId=coupleId;
+    await setDoc(doc(db,"users",CU.uid),profile,{merge:true});
+    // Migrate existing recipes and custom foods to new coupleId
+    await migrateDataToCoupleId(coupleId);
+    toast("✓ Partner collegato!");
+    renderProfileTab();
+  }catch(e){
+    alert("Errore: "+e.message);
+  }
+}
+window.linkPartner=linkPartner;
+
+async function migrateDataToCoupleId(coupleId){
+  // Migrate customFoods from old uid-based doc to coupleId doc
+  try{
+    const oldSnap=await getDoc(doc(db,"customFoods",CU.uid));
+    if(oldSnap.exists()){
+      const foods=oldSnap.data().foods||[];
+      if(foods.length>0){
+        await setDoc(doc(db,"customFoods",coupleId),{foods,coupleId});
+        console.log("Migrated",foods.length,"custom foods to coupleId");
+      }
+    }
+  }catch(e){console.warn("Migration customFoods:",e)}
+  // Migrate recipes
+  try{
+    const recSnap=await getDocs(query(collection(db,"recipes"),where("coupleId","==",CU.uid)));
+    const batch=recSnap.docs.map(d=>setDoc(doc(db,"recipes",d.id),{...d.data(),coupleId},{merge:true}));
+    await Promise.all(batch);
+    console.log("Migrated",recSnap.size,"recipes to coupleId");
+  }catch(e){console.warn("Migration recipes:",e)}
+  // Re-subscribe with new coupleId
+  subscribeRecipes();
+  subscribeCustomFoods();
+}
+window.migrateDataToCoupleId=migrateDataToCoupleId;
+
+// ─── COUPLE MIGRATION ────────────────────────────────────────────────────────
+// One-time migration: assign coupleId to existing users (Simone & Silvia)
+// This runs silently and only affects users without coupleId
+async function migrateExistingCouple(){
+  // Already handled in loadUserProfile - if no coupleId, assigns uid as coupleId
+  // For Simone & Silvia specifically: they need same coupleId
+  // This is handled by the partnerEmail lookup during registration
+  // For existing users: they'll get uid as coupleId (solo mode)
+  // To link them: one of them needs to update their profile with partner email
+  // We'll add a "Link partner" option in profile settings
+}
+
 // ─── FIRESTORE TIMEOUT WRAPPER ────────────────────────────────────────────────
 function withTimeout(promise, ms=8000){
   return Promise.race([
@@ -1564,7 +1665,7 @@ function withTimeout(promise, ms=8000){
 }
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.8.0";
+const APP_VERSION="1.5.0";
 
 function updateVersionIndicator(ok){
   const icon=document.getElementById("version-icon");
@@ -1719,14 +1820,16 @@ let _customFoods = [];  // loaded from Firestore
 
 async function loadCustomFoods(){
   try{
-    const snap = await getDoc(doc(db,"customFoods","shared"));
+    const cid=window._coupleId||CU.uid;
+    const snap = await getDoc(doc(db,"customFoods",cid));
     _customFoods = snap.exists() ? (snap.data().foods||[]) : [];
   }catch(e){ _customFoods = []; console.error("loadCustomFoods:",e); }
   return _customFoods;
 }
 
 async function saveCustomFoods(){
-  await setDoc(doc(db,"customFoods","shared"),{foods:_customFoods});
+  const cid=window._coupleId||CU.uid;
+  await setDoc(doc(db,"customFoods",cid),{foods:_customFoods,coupleId:cid});
   toast("✓ Database alimenti salvato!");
 }
 
@@ -2542,6 +2645,19 @@ async function renderProfileTab(){
 
     <!-- DEPLOY SECTION - solo admin -->
     
+    <!-- PARTNER LINK -->
+    <div class="card" style="margin-bottom:12px">
+      <div style="color:var(--accent);font-weight:700;margin-bottom:10px">👫 Collegamento partner</div>
+      ${profile.partnerEmail
+        ?`<p style="color:var(--muted);font-size:13px">Partner collegato: <strong style="color:#fff">${esc(profile.partnerEmail)}</strong></p>
+          <p style="color:#555;font-size:11px;margin-top:4px">ID coppia: ${profile.coupleId}</p>`
+        :`<p style="color:var(--muted);font-size:13px;margin-bottom:10px">Nessun partner collegato. Inserisci l'email del tuo partner per condividere ricette e alimenti.</p>
+          <div style="display:flex;gap:8px">
+            <input type="email" id="link-partner-email" placeholder="email@partner.com"
+              style="flex:1;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit;outline:none">
+            <button onclick="linkPartner()" style="padding:10px 16px;background:var(--accent);color:#0a0a14;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">Collega</button>
+          </div>`}
+    </div>
     <!-- FIRESTORE USAGE -->
     <div class="card">
       <div style="color:var(--accent);font-weight:700;margin-bottom:12px">☁️ Utilizzo Firebase (piano gratuito)</div>
@@ -2936,6 +3052,7 @@ async function saveRecipe(){
   const recipe={
     name, portions,
     createdBy:profile.name||CU.email,
+    coupleId:window._coupleId||CU.uid,
     updatedAt:new Date().toISOString(),
     ingredients:ings.map(i=>i.foodIdx>=0
       ?{foodName:FOOD_DB[i.foodIdx].name,qty:i.qty,isMain:i.isMain||false}
