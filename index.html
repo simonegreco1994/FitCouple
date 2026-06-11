@@ -280,6 +280,11 @@ input:focus{border-color:var(--accent)}
 <div id="toast">✓ Salvato</div>
 
 <script type="module">
+// ============================================================
+// 🚀 VERSIONE APP — AGGIORNA QUESTO NUMERO AD OGNI DEPLOY! 🚀
+// ============================================================
+const APP_VERSION = "1.9.5";
+// ============================================================
 import { initializeApp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -1668,7 +1673,7 @@ function withTimeout(promise, ms=8000){
 }
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.9.4";
+// APP_VERSION defined at top of script
 
 function updateVersionIndicator(ok){
   const icon=document.getElementById("version-icon");
@@ -2817,7 +2822,7 @@ function renderRecipeIngredients(){
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
           <label class="form-label" style="margin:0">Princ.</label>
           <button onclick="toggleMainIng(${i})" id="main-btn-${i}"
-            style="width:36px;height:36px;border-radius:8px;border:2px solid ${ing.isMain?"#e8ff47":"var(--border)"};background:${ing.isMain?"#e8ff47":"var(--sub)"};color:${ing.isMain?"#0a0a14":"#555"};font-size:16px;cursor:pointer;transition:all .15s">
+            style="width:36px;height:36px;border-radius:8px;border:2px solid ${ing.isMain===true?"#e8ff47":"var(--border)"};background:${ing.isMain===true?"#e8ff47":"var(--sub)"};color:${ing.isMain===true?"#0a0a14":"#555"};font-size:16px;cursor:pointer;transition:all .15s">
             ⭐
           </button>
         </div>
@@ -3174,17 +3179,15 @@ async function editRecipe(id){
   await loadCustomFoods();
   const el=document.getElementById("tab-nutrition");
   window._editingRecipeId=id;
-  console.log('editRecipe ingredients:',JSON.stringify(r.ingredients));
   window._recipeIngredients=(r.ingredients||[]).map(ing=>{
     const dbIdx=FOOD_DB.findIndex(f=>f.name===ing.foodName);
-    if(dbIdx>=0) return {foodIdx:dbIdx,qty:ing.qty,isMain:ing.isMain||false,manualName:null};
-    // custom food
+    if(dbIdx>=0) return {foodIdx:dbIdx,qty:ing.qty,isMain:ing.isMain===true,manualName:null};
     const cf=_customFoods.find(f=>f.name===ing.foodName);
-    return {foodIdx:-1,qty:ing.qty,manualName:ing.foodName,
-      manualKcal:cf?cf.kcal:(ing.kcal||0),
-      manualProtein:cf?cf.protein:(ing.protein||0),
-      manualCarbs:cf?cf.carbs:(ing.carbs||0),
-      manualFat:cf?cf.fat:(ing.fat||0)};
+    if(cf) return {foodIdx:-1,qty:ing.qty,isMain:ing.isMain===true,manualName:cf.name,
+      manualKcal:cf.kcal,manualProtein:cf.protein,manualCarbs:cf.carbs,manualFat:cf.fat};
+    return {foodIdx:-1,qty:ing.qty,isMain:ing.isMain===true,manualName:ing.foodName,
+      manualKcal:ing.kcal||0,manualProtein:ing.protein||0,
+      manualCarbs:ing.carbs||0,manualFat:ing.fat||0};
   });
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
