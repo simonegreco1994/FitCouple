@@ -1213,9 +1213,7 @@ function srchFood(q){
   if(q.trim()) list=list.filter(f=>f.name.toLowerCase().includes(q.toLowerCase()));
   // Also include matching recipes
   const recipes=window._sharedRecipes||[];
-  const matchingRecipes=recipes.filter(r=>!q.trim()||r.name.toLowerCase().includes(q.toLowerCase()))
-    .map(r=>({name:r.name+" 🍽️",kcal:r.totals.kcal,protein:r.totals.protein,carbs:r.totals.carbs,fat:r.totals.fat,unit:"1 porzione",cat:"Ricette",_recipeId:r.id,_portions:r.portions||1}));
-  list=[...list,...matchingRecipes];
+  // Recipes are NOT shown in food search - use the Ricette tab to add them to diary
   renderFoodList(list);
 }
 window.srchFood=srchFood;
@@ -1670,7 +1668,7 @@ function withTimeout(promise, ms=8000){
 }
 
 // ── APP VERSION ───────────────────────────────────────────────────────────────
-const APP_VERSION="1.9.1";
+const APP_VERSION="1.9.2";
 
 function updateVersionIndicator(ok){
   const icon=document.getElementById("version-icon");
