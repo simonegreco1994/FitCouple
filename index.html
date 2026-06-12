@@ -283,7 +283,7 @@ input:focus{border-color:var(--accent)}
 // ============================================================
 // 🚀 VERSIONE APP — AGGIORNA QUESTO NUMERO AD OGNI DEPLOY! 🚀
 // ============================================================
-const APP_VERSION = "1.9.5";
+const APP_VERSION = "1.9.6";
 // ============================================================
 import { initializeApp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -1740,6 +1740,10 @@ function showUpdatePopup(newVer){
           Premi <strong style="color:var(--accent)">Ctrl+Shift+R</strong> (Windows) o <strong style="color:var(--accent)">Cmd+Shift+R</strong> (Mac).
         </p>
       </div>
+      <a href="${location.href}" target="_blank"
+        style="display:block;width:100%;padding:12px;background:var(--accent);color:#0a0a14;border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;text-align:center;text-decoration:none;margin-bottom:10px;box-sizing:border-box">
+        🌐 Apri in Safari per aggiornare
+      </a>
       <button onclick="hideUpdatePopup()" style="width:100%;padding:12px;background:var(--sub);color:var(--muted);border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">
         Ho capito, aggiornerò a breve
       </button>
@@ -1831,6 +1835,26 @@ async function loadCustomFoods(){
     const cid=window._coupleId||CU.uid;
     const snap = await getDoc(doc(db,"customFoods",cid));
     _customFoods = snap.exists() ? (snap.data().foods||[]) : [];
+
+    // Fallback: check legacy "shared" doc for foods added before couple system
+    try{
+      const legacySnap = await getDoc(doc(db,"customFoods","shared"));
+      if(legacySnap.exists()){
+        const legacyFoods = legacySnap.data().foods||[];
+        if(legacyFoods.length>0){
+          // Merge legacy foods not already present
+          const existingNames=new Set(_customFoods.map(f=>f.name));
+          const newOnes=legacyFoods.filter(f=>!existingNames.has(f.name));
+          if(newOnes.length>0){
+            _customFoods=[..._customFoods,...newOnes];
+            // Save merged list to current coupleId doc
+            await setDoc(doc(db,"customFoods",cid),{foods:_customFoods,coupleId:cid});
+            console.log("Migrated",newOnes.length,"foods from legacy 'shared' doc");
+          }
+        }
+      }
+    }catch(e){ console.warn("legacy customFoods check:",e); }
+
   }catch(e){ _customFoods = []; console.error("loadCustomFoods:",e); }
   return _customFoods;
 }
