@@ -283,7 +283,7 @@ input:focus{border-color:var(--accent)}
 // ============================================================
 // 🚀 VERSIONE APP — AGGIORNA QUESTO NUMERO AD OGNI DEPLOY! 🚀
 // ============================================================
-const APP_VERSION = "1.9.6";
+const APP_VERSION = "1.9.7";
 // ============================================================
 import { initializeApp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -872,24 +872,54 @@ function renderLive(){
         <div class="live-ex-label">Esercizio corrente</div>
         ${liveImgHtml}
         <div class="live-ex-name">${esc(ex.name)||"—"}</div>
-        <div class="live-stats">
+        <div class="live-stats" style="margin-bottom:16px">
           <div><div class="live-stat-label">Serie</div><div class="live-stat-val">${liveState.setIdx+1} / ${tot}</div></div>
-          <div><div class="live-stat-label">Ripetizioni</div><div class="live-stat-val">${ex.reps}</div></div>
-          <div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-bottom:8px">
+          <div style="text-align:center">
+            <div class="live-stat-label">Ripetizioni</div>
+            <input type="number" id="live-reps-inp"
+              value="${(ex.setData&&ex.setData[liveState.setIdx])?ex.setData[liveState.setIdx].reps:ex.reps}"
+              min="1" placeholder="—"
+              oninput="updLiveSetData('reps',this.value)"
+              style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:#fff;font-size:20px;font-weight:900;font-family:inherit;outline:none">
+          </div>
+          <div style="text-align:center">
             <div class="live-stat-label">Peso (kg)</div>
             <input type="number" id="live-weight-inp"
-              value="${ex.weight||""}"
+              value="${(ex.setData&&ex.setData[liveState.setIdx])?ex.setData[liveState.setIdx].weight||"":ex.weight||""}"
               placeholder="—"
               onfocus="captureLiveWeightOld(this.value)"
-              oninput="updLiveWeight(this.value)"
-              style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:var(--accent);font-size:20px;font-weight:900;font-family:inherit;outline:none;">
+              oninput="updLiveSetData('weight',this.value);updLiveWeight(this.value)"
+              style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:var(--accent);font-size:20px;font-weight:900;font-family:inherit;outline:none">
           </div>
+        </div>
+        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:4px">
+          ${(ex.setData||[]).map((sd,si)=>`
+            <div style="background:${si<liveState.setIdx?"var(--accent)":si===liveState.setIdx?"rgba(232,255,71,.2)":"var(--sub)"};
+              border:1px solid ${si===liveState.setIdx?"var(--accent)":"var(--border)"};
+              border-radius:8px;padding:4px 8px;font-size:11px;text-align:center;min-width:48px">
+              <div style="color:${si<liveState.setIdx?"#0a0a14":"var(--muted)"}">S${si+1}</div>
+              <div style="color:${si<liveState.setIdx?"#0a0a14":si===liveState.setIdx?"var(--accent)":"#555"};font-weight:700;font-size:12px">
+                ${sd.reps}r${sd.weight?" · "+sd.weight+"kg":""}
+              </div>
+            </div>`).join("")}
         </div>
       </div>
       ${actionH}
       <div class="live-list"><div class="live-list-title">Programma completo</div>${listH}</div>
     </div>`;
 }
+
+function updLiveSetData(field,val){
+  const ex=liveState.workout.exercises[liveState.exIdx];
+  if(!ex.setData) return;
+  if(field==="reps") ex.setData[liveState.setIdx].reps=Number(val)||0;
+  if(field==="weight") ex.setData[liveState.setIdx].weight=Number(val)||0;
+  // Update mini set badges without full re-render
+  const badges=document.querySelectorAll(".live-content .live-ex-card div[style*='S"+liveState.setIdx+"']");
+}
+window.updLiveSetData=updLiveSetData;
 
 function captureLiveWeightOld(val){
   // Salva il peso originale al momento del focus (prima della digitazione)
@@ -913,24 +943,38 @@ window.updLiveWeight=updLiveWeight;
 function completeSet(){
   const w=liveState.workout, ex=w.exercises[liveState.exIdx];
   const tot=Number(ex.sets), next=liveState.setIdx+1;
-  if(next>=tot){
-    const nex=liveState.exIdx+1;
-    if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return}
-    liveState.exIdx=nex;liveState.setIdx=0;liveState.customRest=null;liveState._focusedExIdx=-1;liveState._originalWeight=undefined;
-  }else liveState.setIdx=next;
+  const isLastSet=next>=tot;
   const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
+  if(isLastSet){
+    const nex=liveState.exIdx+1;
+    if(nex>=w.exercises.length){
+      // Last set of last exercise - no rest, done
+      liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return;
+    }
+    // Last set - advance exercise AFTER rest
+    liveState.pendingExAdvance={exIdx:nex,setIdx:0};
+  } else {
+    // Not last set - advance set AFTER rest
+    liveState.pendingExAdvance={exIdx:liveState.exIdx,setIdx:next};
+  }
   if(rs>0){
     liveState.phase="rest";liveState.timerLeft=rs;renderLive();
     liveState.overtime=false;
     liveTimer=setInterval(()=>{
       liveState.timerLeft--;
       if(liveState.timerLeft<0&&!liveState.overtime){
-        liveState.overtime=true;renderLive();return;
+        liveState.overtime=true;
+        applyPendingAdvance(); // advance series when rest ends
+        renderLive();return;
       }
       const d=document.getElementById("rtimer");
       if(d)d.textContent=(liveState.overtime?"-":"")+fmt(Math.abs(liveState.timerLeft));
     },1000);
-  }else{liveState.phase="work";renderLive()}
+  }else{
+    // No rest - advance immediately
+    applyPendingAdvance();
+    liveState.phase="work";renderLive();
+  }
 }
 window.completeSet=completeSet;
 
