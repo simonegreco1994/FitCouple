@@ -708,6 +708,41 @@ window.openWktEditor=openWktEditor;
 window.renderWorkoutsTab=renderWorkoutsTab;
 window.renderNutritionTab=renderNutritionTab;
 
+function buildSetRows(ex,i){
+  const n=Number(ex.sets)||3;
+  if(!ex.setData||ex.setData.length!==n){
+    ex.setData=Array.from({length:n},()=>({reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));
+  }
+  return ex.setData.map((sd,si)=>
+    '<div style="display:grid;grid-template-columns:28px 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px">'+
+    '<span style="color:var(--accent);font-weight:700;font-size:12px;text-align:center">S'+(si+1)+'</span>'+
+    '<div><label class="form-label">Rip.</label>'+
+    '<input type="number" value="'+(sd.reps||'')+'" min="1" oninput="updSetRow('+i+','+si+',&quot;reps&quot;,this.value)" style="border-radius:8px;padding:8px;font-size:14px"></div>'+
+    '<div><label class="form-label">Kg</label>'+
+    '<input type="number" value="'+(sd.weight||'')+'" placeholder="—" oninput="updSetRow('+i+','+si+',&quot;weight&quot;,this.value)" style="border-radius:8px;padding:8px;font-size:14px"></div>'+
+    '</div>'
+  ).join("");
+}
+window.buildSetRows=buildSetRows;
+function updExSets(i,val){
+  const n=Math.max(1,Number(val)||1);
+  const ex=editingWkt.exercises[i];
+  ex.sets=n;
+  if(!ex.setData) ex.setData=[];
+  const dr=Number(ex.reps)||10, dw=Number(ex.weight)||0;
+  while(ex.setData.length<n) ex.setData.push({reps:dr,weight:dw});
+  ex.setData=ex.setData.slice(0,n);
+  const el=document.getElementById("set-rows-"+i);
+  if(el) el.innerHTML=buildSetRows(ex,i);
+}
+window.updExSets=updExSets;
+function updSetRow(ei,si,field,val){
+  const ex=editingWkt.exercises[ei];
+  if(!ex.setData) return;
+  ex.setData[si][field]=Number(val)||0;
+  if(si===0){ if(field==="reps")ex.reps=ex.setData[0].reps; if(field==="weight")ex.weight=ex.setData[0].weight; }
+}
+window.updSetRow=updSetRow;
 function renderWktEditor(){
   const el=document.getElementById("tab-workouts");
   const exH=(editingWkt.exercises||[]).map((ex,i)=>{
@@ -726,12 +761,11 @@ function renderWktEditor(){
       </div>
       ${exImgHtml}
       <input type="text" placeholder="Nome esercizio" value="${esc(ex.name)}" oninput="updEx(${i},'name',this.value)">
-      <div class="ex-grid">
-        <div><label class="form-label">Serie</label><input type="number" value="${ex.sets}" min="1" oninput="updEx(${i},'sets',this.value)"></div>
-        <div><label class="form-label">Rip.</label><input type="number" value="${ex.reps}" min="1" oninput="updEx(${i},'reps',this.value)"></div>
-        <div><label class="form-label">Kg</label><input type="number" value="${ex.weight||""}" placeholder="—" oninput="updEx(${i},'weight',this.value)"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;margin-bottom:10px">
+        <div><label class="form-label">Serie</label><input type="number" value="${ex.sets}" min="1" oninput="updExSets(${i},this.value)"></div>
         <div><label class="form-label">Rec (s)</label><input type="number" value="${ex.rest}" min="0" oninput="updEx(${i},'rest',this.value)"></div>
       </div>
+      <div id="set-rows-${i}">${buildSetRows(ex,i)}</div>
     </div>`}).join("");
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
@@ -772,7 +806,13 @@ window.delWkt=delWkt;
 function startLive(id){
   const w=workouts.find(w=>w.id===id);
   if(!w||(w.exercises||[]).length===0){alert("Aggiungi almeno un esercizio!");return}
-  liveState={workout:JSON.parse(JSON.stringify(w)),exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now(),weightChanges:{}};
+  const wCopy=JSON.parse(JSON.stringify(w));
+  wCopy.exercises.forEach(ex=>{
+    if(!ex.setData||ex.setData.length!==Number(ex.sets)){
+      ex.setData=Array.from({length:Number(ex.sets)||3},()=>({reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));
+    }
+  });
+  liveState={workout:wCopy,exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now(),weightChanges:{}};
   clearInterval(liveTimer);renderLive();showScreen("live");
 }
 window.startLive=startLive;
@@ -872,54 +912,34 @@ function renderLive(){
         <div class="live-ex-label">Esercizio corrente</div>
         ${liveImgHtml}
         <div class="live-ex-name">${esc(ex.name)||"—"}</div>
-        <div class="live-stats" style="margin-bottom:16px">
+        <div class="live-stats" style="margin-bottom:12px">
           <div><div class="live-stat-label">Serie</div><div class="live-stat-val">${liveState.setIdx+1} / ${tot}</div></div>
         </div>
-        <div style="display:flex;gap:12px;justify-content:center;margin-bottom:8px">
+        <div style="display:flex;gap:16px;justify-content:center;margin-bottom:12px">
           <div style="text-align:center">
             <div class="live-stat-label">Ripetizioni</div>
             <input type="number" id="live-reps-inp"
-              value="${(ex.setData&&ex.setData[liveState.setIdx])?ex.setData[liveState.setIdx].reps:ex.reps}"
-              min="1" placeholder="—"
-              oninput="updLiveSetData('reps',this.value)"
+              value="${ex.setData&&ex.setData[liveState.setIdx]?ex.setData[liveState.setIdx].reps:ex.reps}"
+              min="1" oninput="updLiveSetData('reps',this.value)"
               style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:#fff;font-size:20px;font-weight:900;font-family:inherit;outline:none">
           </div>
           <div style="text-align:center">
             <div class="live-stat-label">Peso (kg)</div>
             <input type="number" id="live-weight-inp"
-              value="${(ex.setData&&ex.setData[liveState.setIdx])?ex.setData[liveState.setIdx].weight||"":ex.weight||""}"
-              placeholder="—"
-              onfocus="captureLiveWeightOld(this.value)"
+              value="${ex.setData&&ex.setData[liveState.setIdx]?(ex.setData[liveState.setIdx].weight||''):(ex.weight||'')}"
+              placeholder="—" onfocus="captureLiveWeightOld(this.value)"
               oninput="updLiveSetData('weight',this.value);updLiveWeight(this.value)"
               style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:var(--accent);font-size:20px;font-weight:900;font-family:inherit;outline:none">
           </div>
         </div>
-        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:4px">
-          ${(ex.setData||[]).map((sd,si)=>`
-            <div style="background:${si<liveState.setIdx?"var(--accent)":si===liveState.setIdx?"rgba(232,255,71,.2)":"var(--sub)"};
-              border:1px solid ${si===liveState.setIdx?"var(--accent)":"var(--border)"};
-              border-radius:8px;padding:4px 8px;font-size:11px;text-align:center;min-width:48px">
-              <div style="color:${si<liveState.setIdx?"#0a0a14":"var(--muted)"}">S${si+1}</div>
-              <div style="color:${si<liveState.setIdx?"#0a0a14":si===liveState.setIdx?"var(--accent)":"#555"};font-weight:700;font-size:12px">
-                ${sd.reps}r${sd.weight?" · "+sd.weight+"kg":""}
-              </div>
-            </div>`).join("")}
+        <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+          ${(ex.setData||[]).map((sd,si)=>'<div style="background:'+(si<liveState.setIdx?'var(--accent)':(si===liveState.setIdx?'rgba(232,255,71,.15)':'var(--sub)'))+';border:1px solid '+(si===liveState.setIdx?'var(--accent)':'var(--border)')+';border-radius:6px;padding:3px 7px;font-size:10px;text-align:center;min-width:42px"><div style="color:'+(si<liveState.setIdx?'#0a0a14':'var(--muted)')+'">S'+(si+1)+'</div><div style="font-weight:700;color:'+(si<liveState.setIdx?'#0a0a14':(si===liveState.setIdx?'var(--accent)':'#555'))+'">'+(sd.reps||'?')+'r'+(sd.weight?' '+sd.weight+'kg':'')+'</div></div>').join('')}
         </div>
       </div>
       ${actionH}
       <div class="live-list"><div class="live-list-title">Programma completo</div>${listH}</div>
     </div>`;
 }
-
-function updLiveSetData(field,val){
-  const ex=liveState.workout.exercises[liveState.exIdx];
-  if(!ex.setData) return;
-  if(field==="reps") ex.setData[liveState.setIdx].reps=Number(val)||0;
-  if(field==="weight") ex.setData[liveState.setIdx].weight=Number(val)||0;
-  // Update mini set badges without full re-render
-  const badges=document.querySelectorAll(".live-content .live-ex-card div[style*='S"+liveState.setIdx+"']");
-}
-window.updLiveSetData=updLiveSetData;
 
 function captureLiveWeightOld(val){
   // Salva il peso originale al momento del focus (prima della digitazione)
@@ -930,6 +950,13 @@ function captureLiveWeightOld(val){
 }
 window.captureLiveWeightOld=captureLiveWeightOld;
 
+function updLiveSetData(field,val){
+  const ex=liveState.workout.exercises[liveState.exIdx];
+  if(!ex.setData) ex.setData=[];
+  if(!ex.setData[liveState.setIdx]) ex.setData[liveState.setIdx]={reps:Number(ex.reps)||10,weight:Number(ex.weight)||0};
+  ex.setData[liveState.setIdx][field]=Number(val)||0;
+}
+window.updLiveSetData=updLiveSetData;
 function updLiveWeight(val){
   const ex=liveState.workout.exercises[liveState.exIdx];
   const oldWeight=liveState._originalWeight!==undefined ? liveState._originalWeight : (ex.weight||"");
@@ -940,41 +967,39 @@ function updLiveWeight(val){
 }
 window.updLiveWeight=updLiveWeight;
 
+function applyPendingAdvance(){
+  if(liveState && liveState.pendingExAdvance){
+    const p=liveState.pendingExAdvance;
+    liveState.exIdx=p.exIdx; liveState.setIdx=p.setIdx;
+    liveState.customRest=null; liveState._focusedExIdx=-1; liveState._originalWeight=undefined;
+    liveState.pendingExAdvance=null;
+  }
+}
+window.applyPendingAdvance=applyPendingAdvance;
 function completeSet(){
   const w=liveState.workout, ex=w.exercises[liveState.exIdx];
   const tot=Number(ex.sets), next=liveState.setIdx+1;
-  const isLastSet=next>=tot;
-  const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
-  if(isLastSet){
+  const isLast=next>=tot;
+  if(isLast){
     const nex=liveState.exIdx+1;
-    if(nex>=w.exercises.length){
-      // Last set of last exercise - no rest, done
-      liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return;
-    }
-    // Last set - advance exercise AFTER rest
+    if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return}
     liveState.pendingExAdvance={exIdx:nex,setIdx:0};
-  } else {
-    // Not last set - advance set AFTER rest
+  }else{
     liveState.pendingExAdvance={exIdx:liveState.exIdx,setIdx:next};
   }
+  const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
   if(rs>0){
-    liveState.phase="rest";liveState.timerLeft=rs;renderLive();
-    liveState.overtime=false;
+    liveState.phase="rest";liveState.timerLeft=rs;liveState.overtime=false;
+    clearInterval(liveTimer);renderLive();
     liveTimer=setInterval(()=>{
       liveState.timerLeft--;
       if(liveState.timerLeft<0&&!liveState.overtime){
-        liveState.overtime=true;
-        applyPendingAdvance(); // advance series when rest ends
-        renderLive();return;
+        liveState.overtime=true;applyPendingAdvance();renderLive();return;
       }
       const d=document.getElementById("rtimer");
       if(d)d.textContent=(liveState.overtime?"-":"")+fmt(Math.abs(liveState.timerLeft));
     },1000);
-  }else{
-    // No rest - advance immediately
-    applyPendingAdvance();
-    liveState.phase="work";renderLive();
-  }
+  }else{applyPendingAdvance();liveState.phase="work";renderLive()}
 }
 window.completeSet=completeSet;
 
@@ -993,7 +1018,7 @@ function chgRest(v){
   },1000);
 }
 window.chgRest=chgRest;
-function skipRest(){clearInterval(liveTimer);liveState.phase="work";liveState.overtime=false;renderLive()}
+function skipRest(){clearInterval(liveTimer);liveState.overtime=false;applyPendingAdvance();liveState.phase="work";renderLive()}
 window.skipRest=skipRest;
 function endLive(){clearInterval(liveTimer);liveState=null;showScreen("main");showTab("workouts")}
 window.endLive=endLive;
@@ -2311,7 +2336,8 @@ async function saveWorkoutSession(){
       name:ex.name,
       sets:ex.sets,
       reps:ex.reps,
-      weight:ex.weight||""
+      weight:ex.weight||"",
+      setData:ex.setData||null
     }))
   };
   try{
