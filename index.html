@@ -710,20 +710,50 @@ window.renderNutritionTab=renderNutritionTab;
 
 function buildSetRows(ex,i){
   const n=Number(ex.sets)||3;
+  const isTime=ex.mode==="time";
   if(!ex.setData||ex.setData.length!==n){
-    ex.setData=Array.from({length:n},()=>({reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));
+    ex.setData=Array.from({length:n},()=>(isTime?{seconds:Number(ex.seconds)||30}:{reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));
   }
-  return ex.setData.map((sd,si)=>
-    '<div style="display:grid;grid-template-columns:28px 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px">'+
-    '<span style="color:var(--accent);font-weight:700;font-size:12px;text-align:center">S'+(si+1)+'</span>'+
-    '<div><label class="form-label">Rip.</label>'+
-    '<input type="number" value="'+(sd.reps||'')+'" min="1" oninput="updSetRow('+i+','+si+',&quot;reps&quot;,this.value)" style="border-radius:8px;padding:8px;font-size:14px"></div>'+
-    '<div><label class="form-label">Kg</label>'+
-    '<input type="number" value="'+(sd.weight||'')+'" placeholder="—" oninput="updSetRow('+i+','+si+',&quot;weight&quot;,this.value)" style="border-radius:8px;padding:8px;font-size:14px"></div>'+
-    '</div>'
-  ).join("");
+  const modeToggle='<div style="display:flex;gap:6px;margin-bottom:10px">'+
+    '<button onclick="setExMode('+i+',&quot;reps&quot;)" style="flex:1;padding:7px;border-radius:8px;border:1px solid '+(!isTime?'var(--accent)':'var(--border)')+';background:'+(!isTime?'rgba(232,255,71,.12)':'var(--sub)')+';color:'+(!isTime?'var(--accent)':'var(--muted)')+';font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔢 Ripetizioni</button>'+
+    '<button onclick="setExMode('+i+',&quot;time&quot;)" style="flex:1;padding:7px;border-radius:8px;border:1px solid '+(isTime?'var(--accent)':'var(--border)')+';background:'+(isTime?'rgba(232,255,71,.12)':'var(--sub)')+';color:'+(isTime?'var(--accent)':'var(--muted)')+';font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">⏱ A tempo</button>'+
+    '</div>';
+  const rows=ex.setData.map((sd,si)=>{
+    if(isTime){
+      return '<div style="display:grid;grid-template-columns:28px 1fr;gap:6px;align-items:center;margin-bottom:6px">'+
+        '<span style="color:var(--accent);font-weight:700;font-size:12px;text-align:center">S'+(si+1)+'</span>'+
+        '<div><label class="form-label">Secondi</label>'+
+        '<input type="number" value="'+(sd.seconds||'')+'" min="1" placeholder="30" oninput="updSetRow('+i+','+si+',&quot;seconds&quot;,this.value)" style="border-radius:8px;padding:8px;font-size:14px"></div>'+
+        '</div>';
+    }
+    return '<div style="display:grid;grid-template-columns:28px 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px">'+
+      '<span style="color:var(--accent);font-weight:700;font-size:12px;text-align:center">S'+(si+1)+'</span>'+
+      '<div><label class="form-label">Rip.</label>'+
+      '<input type="number" value="'+(sd.reps||'')+'" min="1" oninput="updSetRow('+i+','+si+',&quot;reps&quot;,this.value)" style="border-radius:8px;padding:8px;font-size:14px"></div>'+
+      '<div><label class="form-label">Kg</label>'+
+      '<input type="number" value="'+(sd.weight||'')+'" placeholder="—" oninput="updSetRow('+i+','+si+',&quot;weight&quot;,this.value)" style="border-radius:8px;padding:8px;font-size:14px"></div>'+
+      '</div>';
+  }).join("");
+  return modeToggle+rows;
 }
 window.buildSetRows=buildSetRows;
+
+function setExMode(i,mode){
+  const ex=editingWkt.exercises[i];
+  ex.mode=mode;
+  const n=Number(ex.sets)||3;
+  if(mode==="time"){ex.setData=Array.from({length:n},()=>({seconds:Number(ex.seconds)||30}));}
+  else{ex.setData=Array.from({length:n},()=>({reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));}
+  const rowsEl=document.getElementById("set-rows-"+i);
+  if(rowsEl) rowsEl.innerHTML=buildSetRows(ex,i);
+}
+window.setExMode=setExMode;
+
+function toggleSuperset(i){
+  editingWkt.exercises[i].supersetNext=!editingWkt.exercises[i].supersetNext;
+  renderWktEditor();
+}
+window.toggleSuperset=toggleSuperset;
 function updExSets(i,val){
   const n=Math.max(1,Number(val)||1);
   const ex=editingWkt.exercises[i];
@@ -740,7 +770,7 @@ function updSetRow(ei,si,field,val){
   const ex=editingWkt.exercises[ei];
   if(!ex.setData) return;
   ex.setData[si][field]=Number(val)||0;
-  if(si===0){ if(field==="reps")ex.reps=ex.setData[0].reps; if(field==="weight")ex.weight=ex.setData[0].weight; }
+  if(si===0){ if(field==="reps")ex.reps=ex.setData[0].reps; if(field==="weight")ex.weight=ex.setData[0].weight; if(field==="seconds")ex.seconds=ex.setData[0].seconds; }
 }
 window.updSetRow=updSetRow;
 function renderWktEditor(){
@@ -766,6 +796,10 @@ function renderWktEditor(){
         <div><label class="form-label">Rec (s)</label><input type="number" value="${ex.rest}" min="0" oninput="updEx(${i},'rest',this.value)"></div>
       </div>
       <div id="set-rows-${i}">${buildSetRows(ex,i)}</div>
+      ${i<editingWkt.exercises.length-1?`
+        <button onclick="toggleSuperset(${i})" style="width:100%;margin-top:10px;padding:8px;border-radius:8px;border:1px dashed ${ex.supersetNext?'var(--accent)':'var(--border)'};background:${ex.supersetNext?'rgba(232,255,71,.1)':'transparent'};color:${ex.supersetNext?'var(--accent)':'var(--muted)'};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">
+          ${ex.supersetNext?'🔗 In superset col successivo':'⛓️ Collega in superset'}
+        </button>`:''}
     </div>`}).join("");
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
@@ -808,11 +842,12 @@ function startLive(id){
   if(!w||(w.exercises||[]).length===0){alert("Aggiungi almeno un esercizio!");return}
   const wCopy=JSON.parse(JSON.stringify(w));
   wCopy.exercises.forEach(ex=>{
+    const isTime=ex.mode==="time";
     if(!ex.setData||ex.setData.length!==Number(ex.sets)){
-      ex.setData=Array.from({length:Number(ex.sets)||3},()=>({reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));
+      ex.setData=Array.from({length:Number(ex.sets)||3},()=>(isTime?{seconds:Number(ex.seconds)||30}:{reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));
     }
   });
-  liveState={workout:wCopy,exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now(),weightChanges:{}};
+  liveState={workout:wCopy,exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now(),weightChanges:{},pendingWeightUpdate:{},pendingExAdvance:null,exTimer:null,exTimerLeft:0,exTimerRunning:false};
   clearInterval(liveTimer);renderLive();showScreen("live");
 }
 window.startLive=startLive;
@@ -881,10 +916,23 @@ function renderLive(){
       const liveImgHtml=_dbExLive
         ?('<img src="'+_dbExLive.img0+'" onclick="showExDetail(\''+_dbExLive.id+'\')" style="width:80px;height:80px;border-radius:12px;object-fit:cover;margin-bottom:10px;cursor:pointer" onerror="this.style.display=\'none\'">')
         :"";
-      const actionH=liveState.phase==="rest"
+      let nextPreview="";
+  if(liveState.phase==="rest" && liveState.pendingExAdvance){
+    const pa=liveState.pendingExAdvance;
+    if(pa.exIdx!==liveState.exIdx){
+      const nextEx=w.exercises[pa.exIdx];
+      if(nextEx){
+        const nextMode=nextEx.mode==="time";
+        const nextDetail=nextMode?((nextEx.seconds||30)+'s'):((nextEx.setData&&nextEx.setData[0]?nextEx.setData[0].reps:nextEx.reps)+' rip'+(nextEx.weight?' · '+nextEx.weight+'kg':''));
+        nextPreview='<div style="background:rgba(232,255,71,.08);border:1px solid var(--accent);border-radius:12px;padding:12px;margin-bottom:12px"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">⏭ Prossimo esercizio</div><div style="font-size:17px;font-weight:800;color:var(--accent)">'+esc(nextEx.name)+'</div><div style="font-size:13px;color:var(--text-soft);margin-top:2px">'+nextDetail+'</div></div>';
+      }
+    }
+  }
+  const actionH=liveState.phase==="rest"
     ?`<div class="rest-card" style="background:${bgColor};border:1px solid ${bdColor}">
         <div class="rest-label" style="color:${fgColor}">${restLabel}</div>
         <div class="rest-timer" id="rtimer" style="color:${fgColor}">${timerTxt}</div>
+        ${nextPreview}
         ${restInputHtml}
         <button onclick="skipRest()" style="margin-top:10px;width:100%;padding:14px;background:${btnBg};color:${fgColor};border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">
           ${btnLabel}
@@ -893,10 +941,12 @@ function renderLive(){
     :`<button class="btn-complete" onclick="completeSet()">✅ Serie completata</button>`;
   const listH=w.exercises.map((e,i)=>{
     const ic=i<liveState.exIdx?"✅":i===liveState.exIdx?"▶️":"⬜";
-    const col=i===liveState.exIdx?"#fff":i<liveState.exIdx?"#555":"#aaa";
+    const col=i===liveState.exIdx?"var(--text)":i<liveState.exIdx?"var(--muted)":"var(--text-soft)";
+    const detail=e.mode==="time"?e.sets+"×"+((e.setData&&e.setData[0]?e.setData[0].seconds:e.seconds)||30)+"s":e.sets+"×"+e.reps+(e.weight?" · "+e.weight+"kg":"");
+    const ssIcon=e.supersetNext?' <span style="color:var(--accent);font-size:11px">🔗</span>':'';
     return `<div class="live-ex-row"><span style="font-size:15px">${ic}</span>
-      <span class="ex-name" style="color:${col}">${esc(e.name)}</span>
-      <span class="ex-detail">${e.sets}×${e.reps}${e.weight?" · "+e.weight+"kg":""}</span></div>`;
+      <span class="ex-name" style="color:${col}">${esc(e.name)}${ssIcon}</span>
+      <span class="ex-detail">${detail}</span></div>`;
   }).join("");
   sc.innerHTML=`
     <div class="live-header">
@@ -911,27 +961,33 @@ function renderLive(){
       <div class="live-ex-card">
         <div class="live-ex-label">Esercizio corrente</div>
         ${liveImgHtml}
-        <div class="live-ex-name">${esc(ex.name)||"—"}</div>
-        <div class="live-stats" style="margin-bottom:12px">
-          <div><div class="live-stat-label">Serie</div><div class="live-stat-val">${liveState.setIdx+1} / ${tot}</div></div>
+        <div class="live-ex-name" style="font-size:26px">${esc(ex.name)||"—"}${ex.supersetNext||ex._inSuperset?' <span style="font-size:14px;color:var(--accent);vertical-align:middle">🔗 SS</span>':''}</div>
+        <div class="live-stats" style="margin-bottom:16px">
+          <div><div class="live-stat-label" style="font-size:13px">Serie</div><div class="live-stat-val" style="font-size:30px">${liveState.setIdx+1} / ${tot}</div></div>
         </div>
-        <div style="display:flex;gap:16px;justify-content:center;margin-bottom:12px">
-          <div style="text-align:center">
-            <div class="live-stat-label">Ripetizioni</div>
-            <input type="number" id="live-reps-inp"
-              value="${ex.setData&&ex.setData[liveState.setIdx]?ex.setData[liveState.setIdx].reps:ex.reps}"
-              min="1" oninput="updLiveSetData('reps',this.value)"
-              style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:#fff;font-size:20px;font-weight:900;font-family:inherit;outline:none">
-          </div>
-          <div style="text-align:center">
-            <div class="live-stat-label">Peso (kg)</div>
-            <input type="number" id="live-weight-inp"
-              value="${ex.setData&&ex.setData[liveState.setIdx]?(ex.setData[liveState.setIdx].weight||''):(ex.weight||'')}"
-              placeholder="—" onfocus="captureLiveWeightOld(this.value)"
-              oninput="updLiveSetData('weight',this.value);updLiveWeight(this.value)"
-              style="width:70px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:8px;padding:4px 6px;color:var(--accent);font-size:20px;font-weight:900;font-family:inherit;outline:none">
-          </div>
-        </div>
+        ${ex.mode==="time"
+          ? `<div style="text-align:center;margin-bottom:16px">
+              <div class="live-stat-label" style="font-size:13px;margin-bottom:8px">Tempo</div>
+              <div id="ex-timer-display" style="font-size:56px;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1;margin-bottom:12px">${fmt((ex.setData&&ex.setData[liveState.setIdx]?ex.setData[liveState.setIdx].seconds:ex.seconds)||30)}</div>
+              <button id="ex-timer-btn" onclick="toggleExTimer()" style="padding:12px 28px;background:var(--accent);color:#0a0a14;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit">▶️ Avvia</button>
+            </div>`
+          : `<div style="display:flex;gap:24px;justify-content:center;margin-bottom:16px">
+              <div style="text-align:center">
+                <div class="live-stat-label" style="font-size:13px;margin-bottom:6px">Ripetizioni</div>
+                <input type="number" id="live-reps-inp"
+                  value="${ex.setData&&ex.setData[liveState.setIdx]?ex.setData[liveState.setIdx].reps:ex.reps}"
+                  min="1" oninput="updLiveSetData('reps',this.value)"
+                  style="width:90px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:8px;color:#fff;font-size:30px;font-weight:900;font-family:inherit;outline:none">
+              </div>
+              <div style="text-align:center">
+                <div class="live-stat-label" style="font-size:13px;margin-bottom:6px">Peso (kg)</div>
+                <input type="number" id="live-weight-inp"
+                  value="${ex.setData&&ex.setData[liveState.setIdx]?(ex.setData[liveState.setIdx].weight||''):(ex.weight||'')}"
+                  placeholder="—" onfocus="captureLiveWeightOld(this.value)"
+                  oninput="updLiveSetData('weight',this.value);updLiveWeight(this.value)"
+                  style="width:90px;text-align:center;background:var(--sub);border:1px solid var(--border);border-radius:10px;padding:8px;color:var(--accent);font-size:30px;font-weight:900;font-family:inherit;outline:none">
+              </div>
+            </div>`}
         <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
           ${(ex.setData||[]).map((sd,si)=>'<div style="background:'+(si<liveState.setIdx?'var(--accent)':(si===liveState.setIdx?'rgba(232,255,71,.15)':'var(--sub)'))+';border:1px solid '+(si===liveState.setIdx?'var(--accent)':'var(--border)')+';border-radius:6px;padding:3px 7px;font-size:10px;text-align:center;min-width:42px"><div style="color:'+(si<liveState.setIdx?'#0a0a14':'var(--muted)')+'">S'+(si+1)+'</div><div style="font-weight:700;color:'+(si<liveState.setIdx?'#0a0a14':(si===liveState.setIdx?'var(--accent)':'#555'))+'">'+(sd.reps||'?')+'r'+(sd.weight?' '+sd.weight+'kg':'')+'</div></div>').join('')}
         </div>
@@ -957,6 +1013,35 @@ function updLiveSetData(field,val){
   ex.setData[liveState.setIdx][field]=Number(val)||0;
 }
 window.updLiveSetData=updLiveSetData;
+
+function toggleExTimer(){
+  const ex=liveState.workout.exercises[liveState.exIdx];
+  const sd=ex.setData&&ex.setData[liveState.setIdx];
+  const totalSecs=(sd?sd.seconds:ex.seconds)||30;
+  const btn=document.getElementById("ex-timer-btn");
+  if(liveState.exTimerRunning){
+    clearInterval(liveState.exTimer);liveState.exTimerRunning=false;
+    if(btn){btn.textContent="▶️ Riprendi";btn.style.background="var(--accent)";}
+    return;
+  }
+  if(liveState.exTimerLeft<=0) liveState.exTimerLeft=totalSecs;
+  liveState.exTimerRunning=true;
+  if(btn){btn.textContent="⏸ Pausa";}
+  clearInterval(liveState.exTimer);
+  liveState.exTimer=setInterval(()=>{
+    liveState.exTimerLeft--;
+    const d=document.getElementById("ex-timer-display");
+    if(d) d.textContent=fmt(Math.max(0,liveState.exTimerLeft));
+    if(liveState.exTimerLeft<=0){
+      clearInterval(liveState.exTimer);liveState.exTimerRunning=false;
+      if(navigator.vibrate) navigator.vibrate([200,100,200]);
+      const b=document.getElementById("ex-timer-btn");
+      if(b){b.textContent="✅ Fatto!";b.style.background="var(--green)";}
+      if(d){d.textContent="0:00";d.style.color="var(--green)";}
+    }
+  },1000);
+}
+window.toggleExTimer=toggleExTimer;
 function updLiveWeight(val){
   const ex=liveState.workout.exercises[liveState.exIdx];
   const oldWeight=liveState._originalWeight!==undefined ? liveState._originalWeight : (ex.weight||"");
@@ -973,22 +1058,49 @@ function applyPendingAdvance(){
     liveState.exIdx=p.exIdx; liveState.setIdx=p.setIdx;
     liveState.customRest=null; liveState._focusedExIdx=-1; liveState._originalWeight=undefined;
     liveState.pendingExAdvance=null;
+    clearInterval(liveState.exTimer);
+    liveState.exTimerLeft=0; liveState.exTimerRunning=false;
   }
 }
 window.applyPendingAdvance=applyPendingAdvance;
+function getSupersetGroup(w, startIdx){
+  let gStart=startIdx;
+  while(gStart>0 && w.exercises[gStart-1].supersetNext) gStart--;
+  let gEnd=gStart;
+  while(gEnd<w.exercises.length-1 && w.exercises[gEnd].supersetNext) gEnd++;
+  return {start:gStart, end:gEnd};
+}
+
 function completeSet(){
   const w=liveState.workout, ex=w.exercises[liveState.exIdx];
-  const tot=Number(ex.sets), next=liveState.setIdx+1;
-  const isLast=next>=tot;
-  if(isLast){
-    const nex=liveState.exIdx+1;
-    if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return}
-    liveState.pendingExAdvance={exIdx:nex,setIdx:0};
+  const tot=Number(ex.sets), nextSet=liveState.setIdx+1;
+  const grp=getSupersetGroup(w, liveState.exIdx);
+  const isSuperset=grp.end>grp.start;
+  let doRest=false;
+  if(isSuperset){
+    if(liveState.exIdx<grp.end){
+      liveState.pendingExAdvance={exIdx:liveState.exIdx+1, setIdx:liveState.setIdx};
+      doRest=false;
+    }else{
+      if(nextSet>=tot){
+        const afterGroup=grp.end+1;
+        if(afterGroup>=w.exercises.length){liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return}
+        liveState.pendingExAdvance={exIdx:afterGroup, setIdx:0};
+      }else{liveState.pendingExAdvance={exIdx:grp.start, setIdx:nextSet};}
+      doRest=true;
+    }
   }else{
-    liveState.pendingExAdvance={exIdx:liveState.exIdx,setIdx:next};
+    if(nextSet>=tot){
+      const nex=liveState.exIdx+1;
+      if(nex>=w.exercises.length){liveState.done=true;saveWorkoutSession();checkWeightChanges();renderLive();return}
+      liveState.pendingExAdvance={exIdx:nex, setIdx:0};
+    }else{liveState.pendingExAdvance={exIdx:liveState.exIdx, setIdx:nextSet};}
+    doRest=true;
   }
+  w.exercises.forEach((e,i)=>{ e._inSuperset=false; });
+  if(isSuperset){ for(let i=grp.start;i<=grp.end;i++) w.exercises[i]._inSuperset=true; }
   const rs=liveState.customRest!==null?liveState.customRest:Number(ex.rest);
-  if(rs>0){
+  if(doRest && rs>0){
     liveState.phase="rest";liveState.timerLeft=rs;liveState.overtime=false;
     clearInterval(liveTimer);renderLive();
     liveTimer=setInterval(()=>{
@@ -999,7 +1111,7 @@ function completeSet(){
       const d=document.getElementById("rtimer");
       if(d)d.textContent=(liveState.overtime?"-":"")+fmt(Math.abs(liveState.timerLeft));
     },1000);
-  }else{applyPendingAdvance();liveState.phase="work";renderLive()}
+  }else{applyPendingAdvance();liveState.phase="work";renderLive();}
 }
 window.completeSet=completeSet;
 
