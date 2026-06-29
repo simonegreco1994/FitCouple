@@ -205,7 +205,6 @@ input:focus{border-color:var(--accent)}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <span id="version-indicator" style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)"><span id="version-icon" style="font-size:16px">⏳</span><span id="version-text" style="font-weight:600">v1.5.0</span></span>
         <button class="btn-logout" onclick="logout()">Esci</button>
       </div>
     </div>
@@ -847,7 +846,7 @@ function startLive(id){
       ex.setData=Array.from({length:Number(ex.sets)||3},()=>(isTime?{seconds:Number(ex.seconds)||30}:{reps:Number(ex.reps)||10,weight:Number(ex.weight)||0}));
     }
   });
-  liveState={workout:wCopy,exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now(),weightChanges:{},pendingWeightUpdate:{},pendingExAdvance:null,exTimer:null,exTimerLeft:0,exTimerRunning:false};
+  liveState={workout:wCopy,_workoutId:id,exIdx:0,setIdx:0,phase:"work",timerLeft:0,customRest:null,done:false,startTime:Date.now(),weightChanges:{},pendingWeightUpdate:{},pendingExAdvance:null,exTimer:null,exTimerLeft:0,exTimerRunning:false};
   clearInterval(liveTimer);renderLive();showScreen("live");
 }
 window.startLive=startLive;
@@ -895,7 +894,7 @@ function renderLive(){
       <h2>Completato!</h2>
       <p style="color:var(--muted)">Ottimo lavoro, ${esc(profile.name||"")}! · ⏱ ${durStr}</p>
       ${weightPrompt}
-      ${changeKeys.length===0?`<button class="btn-primary" style="max-width:280px" onclick="endLive()">Torna alle schede</button>`:""}
+      ${changeKeys.length===0?`<button class="btn-primary" style="max-width:280px" onclick="endLive()">Torna al piano</button>`:""}
     </div>`;
     return;
   }
@@ -1132,7 +1131,7 @@ function chgRest(v){
 window.chgRest=chgRest;
 function skipRest(){clearInterval(liveTimer);liveState.overtime=false;applyPendingAdvance();liveState.phase="work";renderLive()}
 window.skipRest=skipRest;
-function endLive(){clearInterval(liveTimer);liveState=null;showScreen("main");showTab("workouts")}
+function endLive(){clearInterval(liveTimer);liveState=null;showScreen("main");showTab("program")}
 window.endLive=endLive;
 
 // ─── NUTRITION ────────────────────────────────────────────────────────────────
@@ -2262,6 +2261,25 @@ async function renderProgramTab(){
 
   // Today's workout card
   const todayWkt=week[todayIdx]?wkts.find(w=>w.id===week[todayIdx]):null;
+
+  // Check if today's workout was already completed today
+  let todayDone=false;
+  if(todayWkt){
+    try{
+      const hasPartner=profile.partnerEmail&&window._coupleId&&window._coupleId!==CU.uid;
+      const sq=hasPartner
+        ?query(collection(db,"sessions"),where("coupleId","==",window._coupleId))
+        :query(collection(db,"sessions"),where("uid","==",CU.uid));
+      const ssnap=await withTimeout(getDocs(sq));
+      const todayStr=new Date().toDateString();
+      todayDone=ssnap.docs.some(d=>{
+        const s=d.data();
+        const sameDay=s.date&&new Date(s.date).toDateString()===todayStr;
+        const sameWkt=s.workoutId===todayWkt.id||s.workoutName===todayWkt.name;
+        return sameDay&&sameWkt;
+      });
+    }catch(e){ todayDone=false; }
+  }
   const todayHtml=`
     <div style="background:${todayWkt?"rgba(232,255,71,.08)":"var(--card)"};border:1px solid ${todayWkt?"var(--accent)":"var(--border)"};border-radius:18px;padding:18px;margin-bottom:20px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -2277,7 +2295,14 @@ async function renderProgramTab(){
           ${(todayWkt.exercises||[]).slice(0,4).map(e=>`<span style="background:var(--sub);border-radius:20px;padding:4px 10px;font-size:11px;color:#ccc">${esc(e.name)}</span>`).join("")}
           ${(todayWkt.exercises||[]).length>4?`<span style="background:var(--sub);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--muted)">+${(todayWkt.exercises||[]).length-4} altri</span>`:""}
         </div>
-        <button class="btn-primary" onclick="startLive('${todayWkt.id}')">▶️ Inizia allenamento</button>`
+        ${todayDone
+          ? `<div style="background:rgba(74,222,128,.12);border:1px solid var(--green);border-radius:12px;padding:14px;text-align:center">
+               <div style="font-size:28px;margin-bottom:4px">✅</div>
+               <div style="color:var(--green);font-weight:800;font-size:15px">Allenamento completato!</div>
+               <div style="color:var(--muted);font-size:12px;margin-top:2px">Ottimo lavoro 💪</div>
+             </div>
+             <button onclick="startLive('${todayWkt.id}')" style="width:100%;margin-top:10px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Rifai allenamento</button>`
+          : `<button class="btn-primary" onclick="startLive('${todayWkt.id}')">▶️ Inizia allenamento</button>`}`
       :"<p style='color:#555;font-size:13px'>Nessun allenamento programmato per oggi.</p>"}
     </div>`;
 
@@ -2441,6 +2466,7 @@ async function saveWorkoutSession(){
   const duration=liveState.startTime?Math.round((Date.now()-liveState.startTime)/1000):0;
   const session={
     uid:CU.uid,
+    workoutId:w.id||liveState._workoutId||null,
     workoutName:w.name,
     date:new Date().toISOString(),
     durationSecs:duration,
